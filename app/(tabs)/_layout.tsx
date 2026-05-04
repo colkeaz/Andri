@@ -1,33 +1,57 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { COLORS, TYPOGRAPHY } from '../../src/theme/tokens';
+import { Home, PackagePlus, ShoppingCart, List } from 'lucide-react-native';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: 'gray',
+        tabBarStyle: {
+          height: 90,
+          paddingBottom: 20,
+          paddingTop: 10,
+        },
+        tabBarLabelStyle: {
+          ...TYPOGRAPHY.body,
+          fontSize: 14,
+          fontWeight: '700',
+        },
+        headerStyle: {
+          height: 110,
+        },
+        headerTitleStyle: {
+          ...TYPOGRAPHY.h2,
+        },
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: 'My Shop',
+          tabBarIcon: ({ color }) => <Home color={color} size={30} />,
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="inventory"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Stock',
+          tabBarIcon: ({ color }) => <List color={color} size={30} />,
+        }}
+      />
+      <Tabs.Screen
+        name="intake"
+        options={{
+          title: 'Add',
+          tabBarIcon: ({ color }) => <PackagePlus color={color} size={30} />,
+        }}
+      />
+      <Tabs.Screen
+        name="pos"
+        options={{
+          title: 'Sell',
+          tabBarIcon: ({ color }) => <ShoppingCart color={color} size={30} />,
         }}
       />
     </Tabs>

@@ -1,50 +1,80 @@
-# Welcome to your Expo app 👋
+# Smart Inventory System (Sari-Sari Smart) 🏪
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+An AI-powered, elder-friendly mobile application designed specifically for small business owners (like sari-sari stores or local shops) to manage their inventory, track sales, and protect their profit margins against inflation.
 
-## Get started
+## 🌟 Overview & Purpose
 
-1. Install dependencies
+The **Smart Inventory System** is built to solve hidden friction points in running a small retail shop:
+*   **The "Sari-Sari Trap"**: Manual shrinkage and tied-up cash due to poor inventory tracking.
+*   **Price-Chasing**: Difficulty maintaining profit margins when supplier prices change rapidly.
+*   **Dead Stock**: Cash tied up in items that aren't selling.
+*   **Technological Barrier**: Complex point-of-sale systems are often too difficult for elderly shop owners to use.
 
-   ```bash
-   npm install
-   ```
+This app features a "Touch-First," high-contrast UI designed for extreme legibility and ease of use. It minimizes manual typing by prioritizing camera-based intake and large, clear actions.
 
-2. Start the app
+## ✨ Core Features
 
-   ```bash
-   npx expo start
-   ```
+1.  **Elder-Friendly UI**: Massive buttons, high-contrast text, and a simplified navigation structure.
+2.  **"Profit Guard" System**: Automatically detects when a new batch of stock has a higher supplier price and suggests a new selling price to maintain your target profit margin (e.g., 15%).
+3.  **Dead-Stock Warnings**: Visual alerts for items that haven't moved in 30 days, suggesting a "Flash Sale" price to liquidate stock.
+4.  **Quick-Scan POS**: Turn your phone's camera into a rapid barcode scanner for fast checkouts, with a "Quick Tap" grid for non-barcoded items (like loose eggs or bread).
+5.  **Visual Intake (Camera OCR)**: Snap a photo of your receipt or shelf to quickly add new stock (ready for integration with custom AI models).
+6.  **Offline-First**: Uses a local SQLite database to ensure the app works flawlessly even without an internet connection.
 
-In the output, you'll find options to open the app in a
+## 🛠️ Technology Stack
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+*   **Framework**: React Native with Expo Router (Cross-platform iOS/Android)
+*   **Database**: `expo-sqlite` for local persistence
+*   **Camera & Scanning**: `expo-camera` for barcode scanning and visual intake
+*   **Styling**: Custom theme tokens with `lucide-react-native` icons
+*   **AI Readiness**: Architecture prepared for local TensorFlow Lite (`.tflite`) model integration.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## 🚀 Setup & Installation
 
-## Get a fresh project
+### Prerequisites
+*   [Node.js](https://nodejs.org/) installed on your computer.
+*   The **Expo Go** app installed on your physical smartphone (available on iOS App Store and Google Play Store).
 
-When you're ready, run:
+### Running the App
+1.  **Open your terminal** and navigate to the project directory:
+    ```bash
+    cd my-app
+    ```
+2.  **Install dependencies** (if you haven't already):
+    ```bash
+    npm install
+    ```
+3.  **Start the development server**:
+    ```bash
+    npx expo start
+    ```
+4.  **Scan the QR Code**:
+    *   Open the **Expo Go** app on your phone.
+    *   Scan the QR code displayed in your terminal.
+    *   The app will bundle and load on your device!
 
-```bash
-npm run reset-project
+## 🧠 AI Training (Optional Advanced Setup)
+
+To enable the camera to automatically recognize specific local products (instead of just barcodes or manual entry), you can train a custom AI model.
+
+1.  A training script (`train_model.py`) is included in the project root.
+2.  Please refer to the `AI_TRAINING_GUIDE.md` (located in your AI assistant's artifacts or project notes) for details on downloading the **Sari Sandbox** dataset and generating an `inventory_model.tflite` file.
+3.  Once generated, place the `.tflite` model in the app's assets and uncomment the integration logic in `src/services/aiService.ts`.
+
+## 📱 Project Structure
+
+```text
+my-app/
+├── app/                  # Expo Router navigation (Tabs, Layouts)
+│   ├── (tabs)/           # Main app screens (Home, Stock, Add, Sell)
+│   └── _layout.tsx       # Root layout and database initialization
+├── src/
+│   ├── components/       # Reusable UI (BigButton, AlertCard)
+│   ├── database/         # SQLite schema and operations (db.ts)
+│   ├── logic/            # Business logic (Profit Guard calculations)
+│   ├── screens/          # Core views (Dashboard, POS, Inventory, VisualIntake)
+│   ├── services/         # Integrations (AI Vision, QR Generation)
+│   └── theme/            # Colors, Spacing, and Typography tokens
+├── train_model.py        # Python script for generating the AI model
+└── package.json          # Dependencies and scripts
 ```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
