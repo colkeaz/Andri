@@ -7,14 +7,20 @@ import {
   ScrollView, 
   Alert,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Pressable,
 } from 'react-native';
 import { COLORS, TYPOGRAPHY, SPACING } from '../theme/tokens';
 import { BigButton } from '../components/BigButton';
 import { dbService } from '../database/db';
-import { Save, Package } from 'lucide-react-native';
+import { Save, Package, ArrowLeft } from 'lucide-react-native';
 
-export const ManualAddScreen: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
+type ManualAddScreenProps = {
+  onComplete: () => void;
+  onBack?: () => void;
+};
+
+export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, onBack }) => {
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState('');
   const [costPrice, setCostPrice] = useState('');
@@ -51,6 +57,13 @@ export const ManualAddScreen: React.FC<{ onComplete: () => void }> = ({ onComple
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {onBack ? (
+          <Pressable style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]} onPress={onBack}>
+            <ArrowLeft color={COLORS.primary} size={20} />
+            <Text style={styles.backButtonText}>Back</Text>
+          </Pressable>
+        ) : null}
+
         <View style={styles.header}>
           <Package color={COLORS.primary} size={40} />
           <Text style={TYPOGRAPHY.h1}>Add Item Manually</Text>
@@ -121,6 +134,25 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: SPACING.lg,
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,51,102,0.08)',
+    marginBottom: SPACING.sm,
+  },
+  backButtonPressed: {
+    opacity: 0.7,
+  },
+  backButtonText: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.primary,
+    fontWeight: '700',
   },
   header: {
     alignItems: 'center',
