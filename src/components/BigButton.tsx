@@ -1,13 +1,13 @@
-import React from 'react';
-import { 
-  TouchableOpacity, 
-  Text, 
-  StyleSheet, 
-  ViewStyle, 
-  TextStyle,
-  Vibration 
-} from 'react-native';
-import { COLORS, TYPOGRAPHY, SPACING } from '../theme/tokens';
+import * as Haptics from "expo-haptics";
+import React from "react";
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  Vibration,
+  ViewStyle,
+} from "react-native";
+import { COLORS, SPACING, TYPOGRAPHY } from "../theme/tokens";
 
 interface BigButtonProps {
   title: string;
@@ -23,20 +23,22 @@ interface BigButtonProps {
  * - Haptic feedback on press
  * - High contrast
  */
-export const BigButton: React.FC<BigButtonProps> = ({ 
-  title, 
-  onPress, 
-  color = COLORS.primary, 
+export const BigButton: React.FC<BigButtonProps> = ({
+  title,
+  onPress,
+  color = COLORS.primary,
   icon,
-  style 
+  style,
 }) => {
-  const handlePress = () => {
-    Vibration.vibrate(10); // Subtle feedback
+  const handlePress = async () => {
+    // 4ms-like click sensation via light haptic + tiny fallback vibration.
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Vibration.vibrate(4);
     onPress();
   };
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       activeOpacity={0.8}
       onPress={handlePress}
       style={[styles.container, { backgroundColor: color }, style]}
@@ -50,18 +52,19 @@ export const BigButton: React.FC<BigButtonProps> = ({
 const styles = StyleSheet.create({
   container: {
     height: 90, // Massive touch target
-    width: '100%',
+    width: "100%",
     borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: SPACING.md,
-    // Premium Shadow
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.25,
     shadowRadius: 6,
     elevation: 4,
+    borderWidth: 1,
+    borderColor: COLORS.overlay,
   },
   label: {
     ...TYPOGRAPHY.buttonLabel,

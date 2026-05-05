@@ -1,0 +1,45 @@
+# Stocker: Technical Implementation Roadmap (Phase 2)
+
+## Immediate Priority: Data Integrity & Transactional Logic
+
+### 1. Database Helper Extension (`/src/database/transactions.js`)
+Implement a robust transaction wrapper to handle the "leaky data" issue.
+
+- Create `executeSaleTransaction(cartItems)`:
+    - Open `db.transaction()`.
+    - For each item in `cartItems`:
+        - SELECT current quantity from `products`.
+        - Check if `current_qty >= cart.qty`.
+        - UPDATE `products` SET `current_qty = current_qty - ?`.
+        - INSERT INTO `sales` (product_id, qty, total_price, timestamp).
+    - Commit or Rollback on failure.
+
+### 2. POS Interface Wiring (`/src/screens/POS.js`)
+- Replace the "Mock Checkout" logic with the `executeSaleTransaction` call.
+- Implement `expo-haptics` (Success: `Haptics.notificationAsync`, Error: `Haptics.impactAsync`).
+- Add a "Stock Warning" badge to items in the quick-add grid if `current_qty < 5`.
+
+### 3. Inventory Aggregation Fix (`/src/logic/inventoryHelper.js`)
+- Implement a selector that aggregates quantities across the batch-based schema.
+- Logic: `SELECT p.*, SUM(b.quantity) as total_stock FROM products p LEFT JOIN batches b ON p.id = b.product_id GROUP BY p.id`.
+
+## Secondary Priority: Intelligence & AI Integration
+
+### 4. Lightweight OCR Intake (`/src/services/ocrService.js`)
+- Integrate `google-mlkit/text-recognition`.
+- Create a regex parser to find currency patterns (e.g., ^₱?\d+(\.\d{2})?$).
+- UI Flow: Camera -> Capture -> Overlay highlights on detected prices -> Tap to "Inject" into the Cost field.
+
+### 5. Dashboard "Profit Guard" Alerts
+- Calculate Real-time Margin: `((Selling Price - Cost) / Selling Price) * 100`.
+- Generate Alert: If Margin < 12%, push card to Dashboard: "Low Margin Alert: [Item Name]".
+
+## Tertiary Priority: Minimalist Refinement
+
+### 6. Branding & Aesthetic Overhaul
+- Typography: Set global font to Inter or a clean Sans-Serif.
+- Palette: 
+    - Background: #050505 (True Black)
+    - Surface: #121212 (Dark Gray)
+    - Accent: #007AFF (Apple Blue) or #00FF41 (Terminal Green)
+- Feedback: Ensure every button press has a subtle 4ms haptic "click" to simulate high-end hardware.

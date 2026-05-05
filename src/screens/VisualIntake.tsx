@@ -1,17 +1,28 @@
-import React, { useState } from 'react';
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as Haptics from "expo-haptics";
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
+  Camera as CameraIcon,
+  Keyboard,
+  PhilippinePeso,
+  Tag,
+} from "lucide-react-native";
+import React, { useState } from "react";
+import {
   ActivityIndicator,
-  Button
-} from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import { COLORS, TYPOGRAPHY, SPACING } from '../theme/tokens';
-import { BigButton } from '../components/BigButton';
-import { visionService, ScannedReceiptItem } from '../services/aiService';
-import { Camera as CameraIcon, Keyboard } from 'lucide-react-native';
+  Alert,
+  Button,
+  LayoutChangeEvent,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { BigButton } from "../components/BigButton";
+import { dbService } from "../database/db";
+import { OCRChip, processImageForText } from "../services/ocrService";
+import { COLORS, SPACING, TYPOGRAPHY } from "../theme/tokens";
 
 export type VisualIntakeScreenProps = {
   onSwitchToManual?: () => void;
@@ -21,8 +32,15 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
   onSwitchToManual,
 }) => {
   const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = React.useRef<CameraView | null>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [items, setItems] = useState<ScannedReceiptItem[]>([]);
+  const [detectedChips, setDetectedChips] = useState<OCRChip[]>([]);
+  const [selectedName, setSelectedName] = useState("");
+  const [selectedCost, setSelectedCost] = useState("");
+  const [fullText, setFullText] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [cameraLayout, setCameraLayout] = useState({ width: 1, height: 1 });
+  const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
 
   if (!permission) {
     // Camera permissions are still loading
@@ -33,7 +51,9 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
     // Camera permissions are not granted yet
     return (
       <View style={styles.container}>
-        <Text style={[TYPOGRAPHY.body, { textAlign: 'center', marginTop: 100 }]}>
+        <Text
+          style={[TYPOGRAPHY.body, { textAlign: "center", marginTop: 100 }]}
+        >
           We need your permission to show the camera
         </Text>
         <Button onPress={requestPermission} title="grant permission" />
@@ -42,70 +62,212 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
   }
 
   const handleSnap = async () => {
+    if (!cameraRef.current || isScanning) return;
     setIsScanning(true);
-    // Simulate camera delay and OCR processing
-    setTimeout(async () => {
-      const results = await visionService.processReceiptOCR('mock_path');
-      setItems(results);
+
+    try {
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.7,
+      });
+      const imageUri = photo?.uri;
+      if (!imageUri) {
+        throw new Error("Unable to capture image.");
+      }
+
+      setImageSize({
+        width: Number(photo?.width ?? 1),
+        height: Number(photo?.height ?? 1),
+      });
+      const result = await processImageForText(imageUri, {
+        width: Number(photo?.width ?? 1),
+        height: Number(photo?.height ?? 1),
+      });
+      setDetectedChips(result.chips);
+      setFullText(result.fullText);
+
+      if (result.chips.length > 0) {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "OCR failed.";
+      Alert.alert("Scan Failed", message);
+    } finally {
       setIsScanning(false);
-    }, 2000);
+    }
   };
 
-  const renderItem = ({ item }: { item: ScannedReceiptItem }) => (
-    <View style={styles.itemRow}>
-      <View style={{ flex: 1 }}>
-        <Text style={TYPOGRAPHY.bodyLarge}>{item.name}</Text>
-        <Text style={TYPOGRAPHY.body}>Qty: {item.quantity}</Text>
-      </View>
-      <Text style={[TYPOGRAPHY.h2, { color: COLORS.success }]}>₱{item.price}</Text>
-    </View>
-  );
+  const onCameraLayout = (event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    setCameraLayout({ width, height });
+  };
+
+  const scaleChipToPreview = (chip: OCRChip) => {
+    const sourceWidth = Math.max(1, imageSize.width);
+    const sourceHeight = Math.max(1, imageSize.height);
+    const previewWidth = Math.max(1, cameraLayout.width);
+    const previewHeight = Math.max(1, cameraLayout.height);
+
+    // Camera preview typically uses "cover"; this maps source image coordinates
+    // to displayed coordinates for both 4:3 and 16:9 viewports.
+    const scale = Math.max(
+      previewWidth / sourceWidth,
+      previewHeight / sourceHeight,
+    );
+    const renderedWidth = sourceWidth * scale;
+    const renderedHeight = sourceHeight * scale;
+    const cropX = (renderedWidth - previewWidth) / 2;
+    const cropY = (renderedHeight - previewHeight) / 2;
+
+    return {
+      left: Math.max(0, chip.x * scale - cropX),
+      top: Math.max(0, chip.y * scale - cropY),
+      width: Math.max(90, Math.min(chip.width * scale, previewWidth - 16)),
+    };
+  };
+
+  const injectChipValue = async (chip: OCRChip) => {
+    if (chip.type === "name") {
+      setSelectedName(chip.text);
+    } else {
+      setSelectedCost(chip.text);
+    }
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const saveInjectedItem = async () => {
+    const trimmedName = selectedName.trim();
+    const cost = Number(selectedCost);
+    if (!trimmedName || Number.isNaN(cost) || cost <= 0) {
+      Alert.alert(
+        "Missing fields",
+        "Select a product name and valid cost first.",
+      );
+      return;
+    }
+    if (isSaving) return;
+
+    setIsSaving(true);
+    try {
+      const productId = Date.now().toString();
+      const selling = Number((cost * 1.12).toFixed(2));
+      await dbService.addProduct(productId, trimmedName);
+      await dbService.addBatch(`B-${productId}`, productId, 1, cost, selling);
+      Alert.alert(
+        "Added to Inventory",
+        `${trimmedName} saved with cost ₱${cost.toFixed(2)}.`,
+      );
+      setSelectedName("");
+      setSelectedCost("");
+      setDetectedChips([]);
+      setFullText("");
+    } catch {
+      Alert.alert("Save Failed", "Unable to add item to inventory.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
-      {items.length === 0 && (
-        <CameraView style={styles.camera} facing="back">
+      <View style={styles.cameraWrap}>
+        <CameraView
+          ref={cameraRef}
+          style={styles.camera}
+          facing="back"
+          onLayout={onCameraLayout}
+        >
           <View style={styles.buttonContainer}>
-            {isScanning && <ActivityIndicator size="large" color={COLORS.white} />}
+            {isScanning && (
+              <ActivityIndicator size="large" color={COLORS.white} />
+            )}
           </View>
+          {detectedChips.map((chip) => {
+            const scaled = scaleChipToPreview(chip);
+            return (
+              <Pressable
+                key={chip.id}
+                onPress={() => injectChipValue(chip)}
+                style={[
+                  styles.chipOverlay,
+                  {
+                    left: scaled.left,
+                    top: scaled.top,
+                    minWidth: scaled.width,
+                  },
+                  chip.type === "price" ? styles.priceChip : styles.nameChip,
+                ]}
+              >
+                <Text style={styles.chipText} numberOfLines={1}>
+                  {chip.type === "price" ? `₱${chip.text}` : chip.text}
+                </Text>
+              </Pressable>
+            );
+          })}
         </CameraView>
-      )}
+      </View>
 
       <View style={styles.content}>
-        {items.length > 0 ? (
-          <>
-            <Text style={[TYPOGRAPHY.h2, { marginBottom: SPACING.sm }]}>Found Items:</Text>
-            <FlatList
-              data={items}
-              renderItem={renderItem}
-              keyExtractor={(item, index) => index.toString()}
-              style={styles.list}
-            />
-            <BigButton
-              title="CONFIRM & ADD ALL"
-              color={COLORS.success}
-              onPress={() => setItems([])}
-            />
-          </>
-        ) : (
-          <>
-            <BigButton
-              title="SNAP PHOTO"
-              onPress={handleSnap}
-              style={styles.snapButton}
-              icon={<CameraIcon color={COLORS.white} size={32} />}
-            />
-            {onSwitchToManual ? (
-              <BigButton
-                title="ADD MANUALLY INSTEAD"
-                color={COLORS.secondary}
-                onPress={onSwitchToManual}
-                style={styles.manualButton}
-                icon={<Keyboard color={COLORS.primary} size={28} />}
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <BigButton
+            title={isScanning ? "SCANNING..." : "SNAP PHOTO"}
+            onPress={handleSnap}
+            style={styles.snapButton}
+            icon={<CameraIcon color={COLORS.white} size={32} />}
+          />
+
+          <View style={styles.injectCard}>
+            <Text style={styles.injectTitle}>Tap-to-Inject</Text>
+            <Text style={styles.injectHint}>
+              Tap a highlighted chip above to fill Product Name or Cost
+              automatically.
+            </Text>
+
+            <View style={styles.fieldRow}>
+              <Tag color={COLORS.primary} size={18} />
+              <TextInput
+                style={styles.fieldInput}
+                value={selectedName}
+                onChangeText={setSelectedName}
+                placeholder="Detected product name"
               />
-            ) : null}
-          </>
-        )}
+            </View>
+
+            <View style={styles.fieldRow}>
+              <PhilippinePeso color={COLORS.success} size={18} />
+              <TextInput
+                style={styles.fieldInput}
+                value={selectedCost}
+                onChangeText={setSelectedCost}
+                keyboardType="decimal-pad"
+                placeholder="Detected cost"
+              />
+            </View>
+
+            <BigButton
+              title={isSaving ? "SAVING..." : "SAVE DETECTED ITEM"}
+              color={COLORS.success}
+              onPress={saveInjectedItem}
+              style={styles.saveButton}
+            />
+          </View>
+
+          {fullText ? (
+            <View style={styles.textDumpCard}>
+              <Text style={styles.textDumpTitle}>Recognized Text</Text>
+              <Text style={styles.textDumpValue}>{fullText}</Text>
+            </View>
+          ) : null}
+
+          {onSwitchToManual ? (
+            <BigButton
+              title="ADD MANUALLY INSTEAD"
+              color={COLORS.secondary}
+              onPress={onSwitchToManual}
+              style={styles.manualButton}
+              icon={<Keyboard color={COLORS.primary} size={28} />}
+            />
+          ) : null}
+        </ScrollView>
       </View>
     </View>
   );
@@ -116,39 +278,104 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  cameraWrap: {
+    height: 320,
+    overflow: "hidden",
+  },
   camera: {
     flex: 1,
-    maxHeight: 400,
   },
   buttonContainer: {
     flex: 1,
-    backgroundColor: 'transparent',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  chipOverlay: {
+    position: "absolute",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+  },
+  nameChip: {
+    backgroundColor: "rgba(0,51,102,0.88)",
+    borderColor: COLORS.white,
+  },
+  priceChip: {
+    backgroundColor: "rgba(46,125,50,0.9)",
+    borderColor: COLORS.white,
+  },
+  chipText: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: "700",
   },
   content: {
     flex: 1,
     padding: SPACING.md,
   },
   snapButton: {
-    marginTop: SPACING.md,
+    marginTop: SPACING.sm,
+  },
+  injectCard: {
+    marginTop: SPACING.sm,
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.overlay,
+  },
+  injectTitle: {
+    ...TYPOGRAPHY.bodyLarge,
+    fontSize: 18,
+  },
+  injectHint: {
+    ...TYPOGRAPHY.body,
+    fontSize: 14,
+    marginTop: 4,
+    marginBottom: SPACING.sm,
+  },
+  fieldRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+    backgroundColor: COLORS.background,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.overlay,
+    paddingHorizontal: 10,
+  },
+  fieldInput: {
+    flex: 1,
+    height: 44,
+    fontSize: 16,
+    color: COLORS.textPrimary,
+  },
+  saveButton: {
+    marginTop: 4,
+    height: 62,
+  },
+  textDumpCard: {
+    marginTop: SPACING.sm,
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.overlay,
+  },
+  textDumpTitle: {
+    ...TYPOGRAPHY.bodyLarge,
+    fontSize: 16,
+    marginBottom: 6,
+  },
+  textDumpValue: {
+    ...TYPOGRAPHY.body,
+    fontSize: 14,
   },
   manualButton: {
     marginTop: SPACING.sm,
     height: 72,
   },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
-    padding: SPACING.md,
-    borderRadius: 15,
-    marginBottom: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.overlay,
-  },
-  list: {
-    flex: 1,
-    marginBottom: SPACING.md,
-  }
 });

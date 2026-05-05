@@ -3,7 +3,7 @@
  * Row shapes match SQLite column names (snake_case) for API parity with native.
  */
 
-const STORAGE_KEY = 'smart_inventory_web_v1';
+const STORAGE_KEY = "smart_inventory_web_v1";
 
 type ProductRow = {
   id: string;
@@ -23,6 +23,14 @@ type InventoryRow = {
   date_added: string;
 };
 
+type SaleRow = {
+  id: string;
+  product_id: string;
+  quantity: number;
+  total_price: number;
+  timestamp: string;
+};
+
 type AlertRow = {
   id: string;
   type: string;
@@ -37,17 +45,18 @@ type WebStore = {
   products: ProductRow[];
   inventory: InventoryRow[];
   alerts: AlertRow[];
+  sales: SaleRow[];
 };
 
 function emptyStore(): WebStore {
-  return { products: [], inventory: [], alerts: [] };
+  return { products: [], inventory: [], alerts: [], sales: [] };
 }
 
 function canUseStorage(): boolean {
   return (
-    typeof globalThis !== 'undefined' &&
-    typeof (globalThis as unknown as { localStorage?: Storage }).localStorage !==
-      'undefined'
+    typeof globalThis !== "undefined" &&
+    typeof (globalThis as unknown as { localStorage?: Storage })
+      .localStorage !== "undefined"
   );
 }
 
@@ -65,6 +74,7 @@ function readStore(): WebStore {
       products: Array.isArray(parsed.products) ? parsed.products : [],
       inventory: Array.isArray(parsed.inventory) ? parsed.inventory : [],
       alerts: Array.isArray(parsed.alerts) ? parsed.alerts : [],
+      sales: Array.isArray(parsed.sales) ? parsed.sales : [],
     };
   } catch {
     return emptyStore();
@@ -105,7 +115,11 @@ export const dbService = {
     }
   },
 
-  addProduct: async (id: string, name: string, barcode?: string): Promise<void> => {
+  addProduct: async (
+    id: string,
+    name: string,
+    barcode?: string,
+  ): Promise<void> => {
     try {
       const store = readStore();
       const row: ProductRow = {
@@ -119,7 +133,7 @@ export const dbService = {
       store.products.push(row);
       writeStore(store);
     } catch (error) {
-      console.error('addProduct (web) failed', error);
+      console.error("addProduct (web) failed", error);
     }
   },
 
@@ -128,7 +142,7 @@ export const dbService = {
     productId: string,
     qty: number,
     cost: number,
-    sell: number
+    sell: number,
   ): Promise<void> => {
     try {
       const store = readStore();
@@ -144,16 +158,187 @@ export const dbService = {
       store.inventory.push(row);
       writeStore(store);
     } catch (error) {
-      console.error('addBatch (web) failed', error);
+      console.error("addBatch (web) failed", error);
     }
   },
 
   getAlerts: async (): Promise<AlertRow[]> => {
     try {
       const { alerts } = readStore();
-      return alerts.filter((a) => a.status === 'PENDING');
+      return alerts.filter((a) => a.status === "PENDING");
     } catch {
       return [];
     }
+  },
+
+  getInventorySummary: async (): Promise<
+    {
+      id: string;
+      name: string;
+      barcode: string | null;
+      min_stock_level: number;
+      total_stock: number;
+      selling_price: number;
+    }[]
+  > => {
+    try {
+      const { products, inventory } = readStore();
+      return products.map((product) => {
+        const batches = inventory.filter(
+          (row) => row.product_id === product.id,
+        );
+        const totalStock = batches.reduce(
+          (sum, row) => sum + Number(row.quantity || 0),
+          0,
+        );
+        const sellingPrice =
+          batches.length > 0
+            ? Number(batches[batches.length - 1].selling_price || 0)
+            : 0;
+
+        return {
+          id: product.id,
+          name: product.name,
+          barcode: product.barcode,
+          min_stock_level: product.min_stock_level,
+          total_stock: totalStock,
+          selling_price: sellingPrice,
+        };
+      });
+    } catch {
+      return [];
+    }
+  },
+
+  executeSaleTransaction: async (
+    cartItems: { productId: string; quantity: number; unitPrice: number }[],
+  ): Promise<void> => {
+    if (!Array.isArray(cartItems) || cartItems.length === 0) {
+      throw new Error("Cart is empty.");
+    }
+
+    const store = readStore();
+    const nextStore: WebStore = {
+      products: [...store.products],
+      inventory: store.inventory.map((row) => ({ ...row })),
+      alerts: [...store.alerts],
+      sales: [...store.sales],
+    };
+
+    for (const item of cartItems) {
+      const requiredQty = Math.max(0, Math.floor(item.quantity));
+      if (!item.productId || requiredQty <= 0) {
+        throw new Error("Invalid cart item.");
+      }
+
+      const productRows = nextStore.inventory
+        .filter((row) => row.product_id === item.productId && row.quantity > 0)
+        .sort(
+          (a, b) =>
+            new Date(a.date_added).getTime() - new Date(b.date_added).getTime(),
+        );
+
+      const available = productRows.reduce((sum, row) => sum + row.quantity, 0);
+      if (available < requiredQty) {
+        throw new Error(`Insufficient stock for product ${item.productId}.`);
+      }
+
+      let remaining = requiredQty;
+      for (const row of productRows) {
+        if (remaining <= 0) break;
+        const deduct = Math.min(row.quantity, remaining);
+        row.quantity -= deduct;
+        remaining -= deduct;
+      }
+
+      nextStore.sales.push({
+        id: `S-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        product_id: item.productId,
+        quantity: requiredQty,
+        total_price: requiredQty * Number(item.unitPrice),
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    writeStore(nextStore);
+  },
+
+  resetDemoData: async (): Promise<void> => {
+    const demoProducts: ProductRow[] = [
+      {
+        id: "P-DEMO-1",
+        name: "Coke 1.5L",
+        barcode: "4800016642158",
+        category: "Demo",
+        min_stock_level: 5,
+      },
+      {
+        id: "P-DEMO-2",
+        name: "Lucky Me Beef",
+        barcode: "4807770270001",
+        category: "Demo",
+        min_stock_level: 5,
+      },
+      {
+        id: "P-DEMO-3",
+        name: "Bear Brand 320g",
+        barcode: "4800361361131",
+        category: "Demo",
+        min_stock_level: 5,
+      },
+      {
+        id: "P-DEMO-4",
+        name: "Bottled Water 500ml",
+        barcode: "4800014321116",
+        category: "Demo",
+        min_stock_level: 5,
+      },
+    ];
+
+    const demoInventory: InventoryRow[] = [
+      {
+        id: "B-P-DEMO-1",
+        product_id: "P-DEMO-1",
+        quantity: 16,
+        cost_price: 54,
+        selling_price: 65,
+        supplier_name: "Demo Supplier",
+        date_added: new Date().toISOString(),
+      },
+      {
+        id: "B-P-DEMO-2",
+        product_id: "P-DEMO-2",
+        quantity: 42,
+        cost_price: 14,
+        selling_price: 18.5,
+        supplier_name: "Demo Supplier",
+        date_added: new Date().toISOString(),
+      },
+      {
+        id: "B-P-DEMO-3",
+        product_id: "P-DEMO-3",
+        quantity: 8,
+        cost_price: 88,
+        selling_price: 102,
+        supplier_name: "Demo Supplier",
+        date_added: new Date().toISOString(),
+      },
+      {
+        id: "B-P-DEMO-4",
+        product_id: "P-DEMO-4",
+        quantity: 60,
+        cost_price: 17,
+        selling_price: 25,
+        supplier_name: "Demo Supplier",
+        date_added: new Date().toISOString(),
+      },
+    ];
+
+    writeStore({
+      products: demoProducts,
+      inventory: demoInventory,
+      alerts: [],
+      sales: [],
+    });
   },
 };

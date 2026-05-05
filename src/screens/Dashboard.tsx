@@ -1,66 +1,134 @@
-import React, { useMemo, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  SafeAreaView, 
-  StatusBar,
+import { useRouter } from "expo-router";
+import {
+  CircleX,
+  Edit,
+  Info,
+  PackagePlus,
+  PieChart,
+  ShoppingCart,
+  TrendingUp,
+} from "lucide-react-native";
+import React, { useMemo, useState } from "react";
+import {
+  Alert,
   Modal,
   Pressable,
-  Alert,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { COLORS, TYPOGRAPHY, SPACING } from '../theme/tokens';
-import { BigButton } from '../components/BigButton';
-import { AlertCard } from '../components/AlertCard';
-import { PackagePlus, ShoppingCart, TrendingUp, Archive, Edit, Info, CircleX } from 'lucide-react-native';
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import Svg, { Circle } from "react-native-svg";
+import { AlertCard } from "../components/AlertCard";
+import { BigButton } from "../components/BigButton";
+import { getAggregatedInventory } from "../logic/inventoryHelper";
+import { COLORS, SPACING, TYPOGRAPHY } from "../theme/tokens";
 
-// Mock data for initial UI demonstration
-const MOCK_ALERTS = [
-  {
-    id: '1',
-    type: 'PRICE_HIKE' as const,
-    title: '⚠️ Price Alert: Cooking Oil',
-    message: 'Supplier cost rose by ₱15. Tap to update your selling price and keep your 15% profit.',
-    actionLabel: 'Update Price to ₱125',
-  },
-  {
-    id: '2',
-    type: 'DEAD_STOCK' as const,
-    title: '📦 Slow Mover: Biscuits',
-    message: 'This item hasn\'t sold in 30 days. Suggest a Flash Sale to free up ₱1,200 cash.',
-    actionLabel: 'Start Flash Sale (₱10 off)',
-  }
-];
+type DashboardAlert = {
+  id: string;
+  type: "PRICE_HIKE" | "DEAD_STOCK" | "LOW_STOCK";
+  title: string;
+  message: string;
+  actionLabel: string;
+};
 
 export const Dashboard: React.FC = () => {
   const router = useRouter();
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
   const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>([]);
+  const [profitAlerts, setProfitAlerts] = useState<DashboardAlert[]>([]);
+  const [storeHealth, setStoreHealth] = useState({
+    inventoryValue: 0,
+    lowStockCount: 0,
+    totalStockItems: 0,
+    averageMargin: 0,
+  });
+
+  React.useEffect(() => {
+    const loadAlerts = async () => {
+      const inventory = await getAggregatedInventory();
+
+      const computedAlerts: DashboardAlert[] = inventory
+        .map((item) => {
+          const estimatedCost = item.sellingPrice * 0.9;
+          const margin =
+            item.sellingPrice > 0
+              ? ((item.sellingPrice - estimatedCost) / item.sellingPrice) * 100
+              : 0;
+
+          if (item.totalStock <= 0 || margin >= 12) {
+            return null;
+          }
+
+          return {
+            id: `margin-${item.id}`,
+            type: "PRICE_HIKE" as const,
+            title: `Low Margin Alert: ${item.name}`,
+            message: `Current margin is ${margin.toFixed(
+              1,
+            )}%. Keep at least 12% to protect your profit.`,
+            actionLabel: "Review Price",
+          };
+        })
+        .filter((item): item is DashboardAlert => item !== null);
+
+      const inventoryValue = inventory.reduce(
+        (sum, item) => sum + item.totalStock * item.sellingPrice,
+        0,
+      );
+      const lowStockCount = inventory.filter(
+        (item) => item.totalStock <= item.minStockLevel,
+      ).length;
+      const totalStockItems = inventory.length;
+      const averageMargin =
+        inventory.length > 0
+          ? inventory.reduce((sum, item) => {
+              const estimatedCost = item.sellingPrice * 0.9;
+              const margin =
+                item.sellingPrice > 0
+                  ? ((item.sellingPrice - estimatedCost) / item.sellingPrice) *
+                    100
+                  : 0;
+              return sum + margin;
+            }, 0) / inventory.length
+          : 0;
+
+      setProfitAlerts(computedAlerts);
+      setStoreHealth({
+        inventoryValue,
+        lowStockCount,
+        totalStockItems,
+        averageMargin,
+      });
+    };
+
+    loadAlerts();
+  }, []);
 
   const visibleAlerts = useMemo(
-    () => MOCK_ALERTS.filter((item) => !dismissedAlertIds.includes(item.id)),
-    [dismissedAlertIds]
+    () => profitAlerts.filter((item) => !dismissedAlertIds.includes(item.id)),
+    [dismissedAlertIds, profitAlerts],
   );
 
   const selectedAlert = useMemo(
     () => visibleAlerts.find((item) => item.id === selectedAlertId) || null,
-    [selectedAlertId, visibleAlerts]
+    [selectedAlertId, visibleAlerts],
   );
 
   const handleSuggestionAction = () => {
     if (!selectedAlert) return;
 
-    if (selectedAlert.type === 'PRICE_HIKE') {
+    if (selectedAlert.type === "PRICE_HIKE") {
       Alert.alert(
-        'Price suggestion saved',
-        'Suggested selling price was applied for your next stock update.'
+        "Price suggestion saved",
+        "Suggested selling price was applied for your next stock update.",
       );
     } else {
       Alert.alert(
-        'Flash sale marked',
-        'This item is now tagged for quick clearance in your next selling session.'
+        "Flash sale marked",
+        "This item is now tagged for quick clearance in your next selling session.",
       );
     }
 
@@ -68,14 +136,68 @@ export const Dashboard: React.FC = () => {
     setSelectedAlertId(null);
   };
 
+  const stockHealthPct =
+    storeHealth.totalStockItems > 0
+      ? (1 - storeHealth.lowStockCount / storeHealth.totalStockItems) * 100
+      : 100;
+  const profitHealthPct = Math.min(
+    100,
+    Math.max(0, (storeHealth.averageMargin / 12) * 100),
+  );
+
+  const ProgressRing = ({
+    percent,
+    label,
+    value,
+  }: {
+    percent: number;
+    label: string;
+    value: string;
+  }) => {
+    const size = 96;
+    const strokeWidth = 8;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const progress = Math.max(0, Math.min(100, percent));
+    const offset = circumference - (progress / 100) * circumference;
+
+    return (
+      <View style={styles.ringCard}>
+        <Svg width={size} height={size}>
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={COLORS.overlay}
+            strokeWidth={strokeWidth}
+            fill="transparent"
+          />
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={COLORS.primary}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeDasharray={`${circumference} ${circumference}`}
+            strokeDashoffset={offset}
+            fill="transparent"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        </Svg>
+        <Text style={styles.ringValue}>{value}</Text>
+        <Text style={styles.ringLabel}>{label}</Text>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-
         {/* Header Section */}
         <View style={styles.header}>
-          <Text style={styles.headerSubText}>Good morning,</Text>
+          <Text style={styles.headerSubText}>Stocker</Text>
           <Text style={TYPOGRAPHY.h1}>{"Nanay's Store 🏪"}</Text>
           <Text style={styles.headerBodyText}>
             Keep your margins protected and stock moving today.
@@ -85,40 +207,70 @@ export const Dashboard: React.FC = () => {
         {/* Primary Quick Actions */}
         <View style={styles.actionSection}>
           <Text style={styles.sectionLabel}>Quick Actions</Text>
-          <BigButton 
+          <BigButton
             title="INCOMING STOCK"
             color={COLORS.primary}
-            onPress={() => router.push('/intake')}
+            onPress={() => router.push("/intake")}
             style={styles.mainButton}
             icon={<PackagePlus color={COLORS.white} size={32} />}
           />
-          <BigButton 
+          <BigButton
             title="SELL ITEMS"
             color={COLORS.success}
-            onPress={() => router.push('/pos')}
+            onPress={() => router.push("/pos")}
             style={styles.mainButton}
             icon={<ShoppingCart color={COLORS.white} size={32} />}
           />
-          <BigButton 
+          <BigButton
             title="MANUAL ADD"
             color={COLORS.secondary}
-            onPress={() => router.push('/intake?mode=manual&source=dashboard')}
+            onPress={() => router.push("/intake?mode=manual&source=dashboard")}
             style={styles.smallButton}
             icon={<Edit color={COLORS.primary} size={28} />}
           />
         </View>
 
+        <View style={styles.bentoGrid}>
+          <View style={styles.bentoMain}>
+            <View style={styles.bentoHeader}>
+              <Text style={styles.bentoTitle}>Store Health</Text>
+              <PieChart color={COLORS.primary} size={18} />
+            </View>
+            <Text style={styles.bentoValue}>
+              ₱{Math.round(storeHealth.inventoryValue).toLocaleString()}
+            </Text>
+            <Text style={styles.bentoCaption}>Inventory Value</Text>
+          </View>
+
+          <View style={styles.bentoRow}>
+            <ProgressRing
+              percent={stockHealthPct}
+              label="Stock Health"
+              value={`${Math.round(stockHealthPct)}%`}
+            />
+            <ProgressRing
+              percent={profitHealthPct}
+              label="Profit Health"
+              value={`${storeHealth.averageMargin.toFixed(1)}%`}
+            />
+          </View>
+        </View>
+
         {/* Smart Alerts Section */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <TrendingUp color={COLORS.primary} size={28} style={{ marginRight: 10 }} />
+            <TrendingUp
+              color={COLORS.primary}
+              size={28}
+              style={{ marginRight: 10 }}
+            />
             <Text style={TYPOGRAPHY.h2}>Smart Suggestions</Text>
             <Text style={styles.suggestionCount}>{visibleAlerts.length}</Text>
           </View>
 
           {visibleAlerts.length > 0 ? (
             visibleAlerts.map((alert) => (
-              <AlertCard 
+              <AlertCard
                 key={alert.id}
                 type={alert.type}
                 title={alert.title}
@@ -137,30 +289,15 @@ export const Dashboard: React.FC = () => {
           )}
         </View>
 
-        {/* Inventory Overview (Simplified) */}
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryHeader}>
-            <Text style={[TYPOGRAPHY.h2, { color: COLORS.white }]}>Store Health</Text>
-            <Archive color={COLORS.white} size={24} />
-          </View>
-          <View style={styles.healthStats}>
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>₱45,200</Text>
-              <Text style={styles.statLabel}>Inventory Value</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Text style={[styles.statValue, { color: COLORS.secondary }]}>5</Text>
-              <Text style={styles.statLabel}>Low Stock</Text>
-            </View>
-          </View>
-          <Pressable
-            style={({ pressed }) => [styles.healthAction, pressed && styles.healthActionPressed]}
-            onPress={() => router.push('/inventory')}
-          >
-            <Text style={styles.healthActionText}>View Stock Details</Text>
-          </Pressable>
-        </View>
-
+        <Pressable
+          style={({ pressed }) => [
+            styles.healthAction,
+            pressed && styles.healthActionPressed,
+          ]}
+          onPress={() => router.push("/inventory")}
+        >
+          <Text style={styles.healthActionText}>View Stock Details</Text>
+        </Pressable>
       </ScrollView>
 
       <Modal
@@ -182,7 +319,10 @@ export const Dashboard: React.FC = () => {
 
             <View style={styles.modalActions}>
               <Pressable
-                style={({ pressed }) => [styles.modalActionSecondary, pressed && styles.pressed]}
+                style={({ pressed }) => [
+                  styles.modalActionSecondary,
+                  pressed && styles.pressed,
+                ]}
                 onPress={() => {
                   if (selectedAlert) {
                     setDismissedAlertIds((prev) => [...prev, selectedAlert.id]);
@@ -193,7 +333,10 @@ export const Dashboard: React.FC = () => {
                 <Text style={styles.modalActionSecondaryText}>Dismiss</Text>
               </Pressable>
               <Pressable
-                style={({ pressed }) => [styles.modalActionPrimary, pressed && styles.pressed]}
+                style={({ pressed }) => [
+                  styles.modalActionPrimary,
+                  pressed && styles.pressed,
+                ]}
                 onPress={handleSuggestionAction}
               >
                 <Text style={styles.modalActionPrimaryText}>Apply</Text>
@@ -230,9 +373,59 @@ const styles = StyleSheet.create({
   actionSection: {
     marginBottom: SPACING.lg,
   },
+  bentoGrid: {
+    marginBottom: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  bentoMain: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: COLORS.overlay,
+    padding: SPACING.md,
+  },
+  bentoHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  bentoTitle: {
+    ...TYPOGRAPHY.body,
+    fontSize: 14,
+  },
+  bentoValue: {
+    ...TYPOGRAPHY.h2,
+    fontSize: 30,
+  },
+  bentoCaption: {
+    ...TYPOGRAPHY.body,
+    fontSize: 13,
+  },
+  bentoRow: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  ringCard: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: COLORS.overlay,
+    alignItems: "center",
+    paddingVertical: SPACING.sm,
+  },
+  ringValue: {
+    ...TYPOGRAPHY.bodyLarge,
+    marginTop: 4,
+  },
+  ringLabel: {
+    ...TYPOGRAPHY.body,
+    fontSize: 13,
+  },
   sectionLabel: {
     ...TYPOGRAPHY.body,
-    fontWeight: '700',
+    fontWeight: "700",
     color: COLORS.textPrimary,
     marginBottom: SPACING.sm,
   },
@@ -245,34 +438,34 @@ const styles = StyleSheet.create({
     height: 80,
   },
   sectionCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderRadius: 22,
     padding: SPACING.md,
     marginBottom: SPACING.lg,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 10,
     elevation: 3,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: SPACING.md,
   },
   suggestionCount: {
-    marginLeft: 'auto',
+    marginLeft: "auto",
     ...TYPOGRAPHY.body,
-    fontWeight: '700',
+    fontWeight: "700",
     color: COLORS.primary,
   },
   emptySuggestionCard: {
     borderWidth: 1,
-    borderColor: 'rgba(46,125,50,0.25)',
+    borderColor: "rgba(46,125,50,0.25)",
     borderRadius: 16,
     padding: SPACING.md,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   emptySuggestionText: {
@@ -280,60 +473,28 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
   },
-  summaryCard: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 24,
-    padding: SPACING.lg,
-    marginBottom: SPACING.xl,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
-    elevation: 10,
-  },
-  healthStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: SPACING.md,
-  },
-  summaryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  statBox: {
-    flex: 1,
-  },
-  statValue: {
-    ...TYPOGRAPHY.h2,
-    color: COLORS.white,
-    fontSize: 28,
-  },
-  statLabel: {
-    ...TYPOGRAPHY.body,
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 14,
-  },
   healthAction: {
-    marginTop: SPACING.md,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.xl,
     borderRadius: 14,
     paddingVertical: 12,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.45)',
+    borderColor: COLORS.overlay,
+    backgroundColor: COLORS.surface,
   },
   healthActionPressed: {
     opacity: 0.8,
   },
   healthActionText: {
     ...TYPOGRAPHY.body,
-    color: COLORS.white,
-    fontWeight: '700',
+    color: COLORS.textPrimary,
+    fontWeight: "700",
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "flex-end",
   },
   modalCard: {
     backgroundColor: COLORS.surface,
@@ -343,9 +504,9 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xl,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: SPACING.sm,
   },
   modalTitle: {
@@ -358,7 +519,7 @@ const styles = StyleSheet.create({
   },
   modalActions: {
     marginTop: SPACING.lg,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: SPACING.sm,
   },
   modalActionSecondary: {
@@ -367,24 +528,24 @@ const styles = StyleSheet.create({
     borderColor: COLORS.overlay,
     borderRadius: 14,
     paddingVertical: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   modalActionSecondaryText: {
     ...TYPOGRAPHY.body,
     color: COLORS.textPrimary,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   modalActionPrimary: {
     flex: 1,
     backgroundColor: COLORS.primary,
     borderRadius: 14,
     paddingVertical: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   modalActionPrimaryText: {
     ...TYPOGRAPHY.body,
     color: COLORS.white,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   pressed: {
     opacity: 0.85,

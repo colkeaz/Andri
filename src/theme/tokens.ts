@@ -1,15 +1,14 @@
-// Theme tokens for Elder-Friendly UI
 export const COLORS = {
-  primary: '#003366', // Deep Navy (High Contrast)
-  secondary: '#FFD700', // Gold (Attention)
-  success: '#2E7D32', // Dark Green
-  danger: '#D32F2F', // High Visibility Red
-  background: '#F5F7FA',
-  surface: '#FFFFFF',
-  textPrimary: '#1A1A1A',
-  textSecondary: '#4A4A4A',
-  white: '#FFFFFF',
-  overlay: 'rgba(0,0,0,0.05)',
+  primary: "#007AFF",
+  secondary: "#FFFFFF",
+  success: "#30D158",
+  danger: "#FF453A",
+  background: "#000000",
+  surface: "#111111",
+  textPrimary: "#FFFFFF",
+  textSecondary: "#B3B3B3",
+  white: "#FFFFFF",
+  overlay: "#222222",
 };
 
 export const SPACING = {
@@ -23,26 +22,31 @@ export const SPACING = {
 export const TYPOGRAPHY = {
   h1: {
     fontSize: 34,
-    fontWeight: '800' as const,
+    fontWeight: "800" as const,
+    fontFamily: "Inter_700Bold",
     color: COLORS.textPrimary,
   },
   h2: {
     fontSize: 24,
-    fontWeight: '700' as const,
+    fontWeight: "700" as const,
+    fontFamily: "Inter_600SemiBold",
     color: COLORS.textPrimary,
   },
   bodyLarge: {
     fontSize: 20,
-    fontWeight: '600' as const,
+    fontWeight: "600" as const,
+    fontFamily: "Inter_500Medium",
     color: COLORS.textPrimary,
   },
   body: {
     fontSize: 18,
+    fontFamily: "Inter_400Regular",
     color: COLORS.textSecondary,
   },
   buttonLabel: {
     fontSize: 22,
-    fontWeight: '700' as const,
+    fontWeight: "700" as const,
+    fontFamily: "Inter_600SemiBold",
     color: COLORS.white,
   },
 };

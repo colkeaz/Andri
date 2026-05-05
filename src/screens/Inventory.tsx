@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  SafeAreaView,
-  TouchableOpacity,
+import { AlertCircle, Boxes, CircleX, Package } from "lucide-react-native";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
   Modal,
   Pressable,
-  ActivityIndicator,
   RefreshControl,
-} from 'react-native';
-import { COLORS, TYPOGRAPHY, SPACING } from '../theme/tokens';
-import { dbService } from '../database/db';
-import { Package, AlertCircle, CircleX, Boxes } from 'lucide-react-native';
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { getAggregatedInventory } from "../logic/inventoryHelper";
+import { COLORS, SPACING, TYPOGRAPHY } from "../theme/tokens";
 
 type InventoryItem = {
   id: string;
@@ -24,10 +24,10 @@ type InventoryItem = {
 };
 
 const FALLBACK_INVENTORY: InventoryItem[] = [
-  { id: '1', name: 'Coke 1.5L', quantity: 12, min_stock: 5 },
-  { id: '2', name: 'Lucky Me Noodles', quantity: 2, min_stock: 10 },
-  { id: '3', name: 'Bear Brand 320g', quantity: 45, min_stock: 10 },
-  { id: '4', name: 'Egg (Large)', quantity: 120, min_stock: 50 },
+  { id: "1", name: "Coke 1.5L", quantity: 12, min_stock: 5 },
+  { id: "2", name: "Lucky Me Noodles", quantity: 2, min_stock: 10 },
+  { id: "3", name: "Bear Brand 320g", quantity: 45, min_stock: 10 },
+  { id: "4", name: "Egg (Large)", quantity: 120, min_stock: 50 },
 ];
 
 export const InventoryScreen: React.FC = () => {
@@ -39,19 +39,19 @@ export const InventoryScreen: React.FC = () => {
 
   const hydrateInventory = async () => {
     try {
-      const products = await dbService.getProducts();
+      const products = await getAggregatedInventory();
       if (!Array.isArray(products) || products.length === 0) {
         setInventory(FALLBACK_INVENTORY);
         setIsUsingFallback(true);
         return;
       }
 
-      const mappedItems: InventoryItem[] = products.map((product: any) => ({
-        id: String(product.id),
-        name: product.name ?? 'Unnamed item',
-        barcode: product.barcode ?? null,
-        quantity: 0,
-        min_stock: Number(product.min_stock_level ?? 5),
+      const mappedItems: InventoryItem[] = products.map((product) => ({
+        id: product.id,
+        name: product.name,
+        barcode: product.barcode,
+        quantity: product.totalStock,
+        min_stock: product.minStockLevel,
       }));
 
       setInventory(mappedItems);
@@ -79,7 +79,7 @@ export const InventoryScreen: React.FC = () => {
 
   const renderItem = ({ item }: { item: InventoryItem }) => {
     const isLow = item.quantity <= item.min_stock;
-    
+
     return (
       <TouchableOpacity
         activeOpacity={0.85}
@@ -93,7 +93,7 @@ export const InventoryScreen: React.FC = () => {
             <Text style={styles.itemMeta}>Min: {item.min_stock}</Text>
           </View>
         </View>
-        
+
         {isLow ? (
           <View style={[styles.badge, { backgroundColor: COLORS.danger }]}>
             <AlertCircle color={COLORS.white} size={16} />
@@ -108,7 +108,9 @@ export const InventoryScreen: React.FC = () => {
     );
   };
 
-  const lowStockCount = inventory.filter((item) => item.quantity <= item.min_stock).length;
+  const lowStockCount = inventory.filter(
+    (item) => item.quantity <= item.min_stock,
+  ).length;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -124,13 +126,16 @@ export const InventoryScreen: React.FC = () => {
         </View>
         <View style={[styles.metricCard, styles.metricAlertCard]}>
           <Text style={styles.metricLabel}>Low Stock</Text>
-          <Text style={[styles.metricValue, { color: COLORS.danger }]}>{lowStockCount}</Text>
+          <Text style={[styles.metricValue, { color: COLORS.danger }]}>
+            {lowStockCount}
+          </Text>
         </View>
       </View>
 
       {isUsingFallback ? (
         <Text style={styles.hintText}>
-          Showing demo stock. Add items in the Add tab to load real product data.
+          Showing demo stock. Add items in the Add tab to load real product
+          data.
         </Text>
       ) : null}
 
@@ -146,7 +151,9 @@ export const InventoryScreen: React.FC = () => {
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+        }
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyState}>
@@ -177,15 +184,21 @@ export const InventoryScreen: React.FC = () => {
             <Text style={styles.modalItemName}>{selectedItem?.name}</Text>
             <View style={styles.modalRow}>
               <Text style={styles.modalLabel}>Current Stock</Text>
-              <Text style={styles.modalValue}>{selectedItem?.quantity ?? 0}</Text>
+              <Text style={styles.modalValue}>
+                {selectedItem?.quantity ?? 0}
+              </Text>
             </View>
             <View style={styles.modalRow}>
               <Text style={styles.modalLabel}>Min. Stock</Text>
-              <Text style={styles.modalValue}>{selectedItem?.min_stock ?? 0}</Text>
+              <Text style={styles.modalValue}>
+                {selectedItem?.min_stock ?? 0}
+              </Text>
             </View>
             <View style={styles.modalRow}>
               <Text style={styles.modalLabel}>Barcode</Text>
-              <Text style={styles.modalValue}>{selectedItem?.barcode ?? 'Not set'}</Text>
+              <Text style={styles.modalValue}>
+                {selectedItem?.barcode ?? "Not set"}
+              </Text>
             </View>
           </View>
         </View>
@@ -202,14 +215,14 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.overlay,
   },
   metricsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: SPACING.sm,
     paddingHorizontal: SPACING.md,
     paddingTop: SPACING.md,
@@ -222,7 +235,7 @@ const styles = StyleSheet.create({
   },
   metricAlertCard: {
     borderWidth: 1,
-    borderColor: 'rgba(211,47,47,0.25)',
+    borderColor: "rgba(211,47,47,0.25)",
   },
   metricLabel: {
     ...TYPOGRAPHY.body,
@@ -240,7 +253,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   loadingWrap: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: SPACING.md,
   },
   loadingText: {
@@ -256,10 +269,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: SPACING.md,
     marginBottom: SPACING.sm,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#000',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 5,
@@ -267,7 +280,7 @@ const styles = StyleSheet.create({
   },
   lowCard: {
     borderWidth: 1,
-    borderColor: 'rgba(211,47,47,0.25)',
+    borderColor: "rgba(211,47,47,0.25)",
   },
   cardInfo: {
     flex: 1,
@@ -277,7 +290,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   itemMetaRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: SPACING.md,
     marginTop: 6,
   },
@@ -289,18 +302,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   badgeText: {
     color: COLORS.white,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     fontSize: 12,
     marginLeft: 4,
   },
   emptyState: {
     marginTop: SPACING.xl,
-    alignItems: 'center',
+    alignItems: "center",
     paddingHorizontal: SPACING.lg,
   },
   emptyTitle: {
@@ -310,12 +323,12 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     ...TYPOGRAPHY.body,
     marginTop: 6,
-    textAlign: 'center',
+    textAlign: "center",
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "flex-end",
   },
   modalCard: {
     backgroundColor: COLORS.surface,
@@ -325,9 +338,9 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xl,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: SPACING.md,
   },
   modalItemName: {
@@ -335,8 +348,8 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   modalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.overlay,
@@ -348,7 +361,7 @@ const styles = StyleSheet.create({
   modalValue: {
     ...TYPOGRAPHY.body,
     color: COLORS.textPrimary,
-    fontWeight: '700',
+    fontWeight: "700",
     marginLeft: SPACING.md,
   },
 });
