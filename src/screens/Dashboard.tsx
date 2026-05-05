@@ -102,16 +102,7 @@ export const Dashboard: React.FC = () => {
           <BigButton 
             title="MANUAL ADD"
             color={COLORS.secondary}
-            onPress={() =>
-              Alert.alert(
-                'Manual Add',
-                'Open Add screen then tap "ADD MANUALLY INSTEAD" to enter item details without camera.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Open Add', onPress: () => router.push('/intake') },
-                ]
-              )
-            }
+            onPress={() => router.push('/intake?mode=manual&source=dashboard')}
             style={styles.smallButton}
             icon={<Edit color={COLORS.primary} size={28} />}
           />
