@@ -1,9 +1,9 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { COLORS, TYPOGRAPHY, SPACING } from '../theme/tokens';
+import React from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
 
 interface AlertCardProps {
-  type: 'PRICE_HIKE' | 'DEAD_STOCK';
+  type: "PRICE_HIKE" | "DEAD_STOCK" | "LOW_STOCK";
   title: string;
   message: string;
   actionLabel: string;
@@ -17,18 +17,20 @@ export const AlertCard: React.FC<AlertCardProps> = ({
   actionLabel,
   onAction,
 }) => {
-  const isWarning = type === 'PRICE_HIKE';
-  
+  const isWarning = type === "PRICE_HIKE" || type === "LOW_STOCK";
+  const accentColor = isWarning ? COLORS.warning : COLORS.primary;
+
   return (
-    <View style={[styles.container, isWarning ? styles.borderWarning : styles.borderInfo]}>
+    <View style={[styles.container, { borderLeftColor: accentColor }]}>
       <View style={styles.content}>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.message}>{message}</Text>
       </View>
-      
-      <TouchableOpacity 
-        style={[styles.button, { backgroundColor: isWarning ? COLORS.danger : COLORS.success }]}
+
+      <TouchableOpacity
+        style={[styles.button, { backgroundColor: accentColor }]}
         onPress={onAction}
+        activeOpacity={0.82}
       >
         <Text style={styles.buttonText}>{actionLabel}</Text>
       </TouchableOpacity>
@@ -39,41 +41,31 @@ export const AlertCard: React.FC<AlertCardProps> = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.surface,
-    borderRadius: 24,
-    padding: SPACING.md,
-    marginVertical: SPACING.sm,
-    borderWidth: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  borderWarning: {
-    borderColor: COLORS.danger,
-  },
-  borderInfo: {
-    borderColor: COLORS.success,
+    borderRadius:    RADIUS.md,
+    padding:         SPACING.md,
+    marginBottom:    SPACING.sm,
+    borderLeftWidth: 3,
+    ...SHADOW.card,
   },
   content: {
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   title: {
-    ...TYPOGRAPHY.h2,
-    marginBottom: SPACING.xs,
+    ...TYPOGRAPHY.bodyLarge,
+    marginBottom: 4,
   },
   message: {
     ...TYPOGRAPHY.body,
-    lineHeight: 26,
+    lineHeight: 22,
   },
   button: {
-    height: 60,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
+    height:         48,
+    borderRadius:   RADIUS.sm,
+    alignItems:     "center",
+    justifyContent: "center",
   },
   buttonText: {
     ...TYPOGRAPHY.buttonLabel,
-    fontSize: 18,
+    fontSize: 15,
   },
 });

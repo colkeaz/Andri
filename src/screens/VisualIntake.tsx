@@ -4,13 +4,13 @@ import {
   Camera as CameraIcon,
   Keyboard,
   PhilippinePeso,
+  ScanLine,
   Tag,
 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Button,
   LayoutChangeEvent,
   Pressable,
   ScrollView,
@@ -22,7 +22,7 @@ import {
 import { BigButton } from "../components/BigButton";
 import { dbService } from "../database/db";
 import { OCRChip, processImageForText } from "../services/ocrService";
-import { COLORS, SPACING, TYPOGRAPHY } from "../theme/tokens";
+import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
 
 export type VisualIntakeScreenProps = {
   onSwitchToManual?: () => void;
@@ -42,21 +42,19 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
   const [cameraLayout, setCameraLayout] = useState({ width: 1, height: 1 });
   const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
 
-  if (!permission) {
-    // Camera permissions are still loading
-    return <View />;
-  }
+  if (!permission) return <View />;
 
   if (!permission.granted) {
-    // Camera permissions are not granted yet
     return (
-      <View style={styles.container}>
-        <Text
-          style={[TYPOGRAPHY.body, { textAlign: "center", marginTop: 100 }]}
-        >
-          We need your permission to show the camera
+      <View style={styles.permissionWrap}>
+        <ScanLine color={COLORS.textSecondary} size={64} />
+        <Text style={styles.permissionTitle}>Camera Access Needed</Text>
+        <Text style={styles.permissionBody}>
+          Allow camera access to scan product labels and detect prices automatically.
         </Text>
-        <Button onPress={requestPermission} title="grant permission" />
+        <Pressable style={styles.permissionBtn} onPress={requestPermission}>
+          <Text style={styles.permissionBtnText}>Grant Access</Text>
+        </Pressable>
       </View>
     );
   }
@@ -278,53 +276,90 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+
+  // ── Permission screen ──────────────────────────────────────────
+  permissionWrap: {
+    flex:            1,
+    backgroundColor: COLORS.background,
+    alignItems:      "center",
+    justifyContent:  "center",
+    padding:         SPACING.lg,
+    gap:             SPACING.sm,
+  },
+  permissionTitle: {
+    ...TYPOGRAPHY.h2,
+    marginTop: SPACING.sm,
+  },
+  permissionBody: {
+    ...TYPOGRAPHY.body,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  permissionBtn: {
+    marginTop:         SPACING.md,
+    backgroundColor:   COLORS.primary,
+    borderRadius:      RADIUS.md,
+    paddingVertical:   14,
+    paddingHorizontal: SPACING.lg,
+    ...SHADOW.card,
+  },
+  permissionBtnText: {
+    ...TYPOGRAPHY.buttonLabel,
+  },
+
+  // ── Camera ────────────────────────────────────────────────────
   cameraWrap: {
-    height: 320,
+    height:   320,
     overflow: "hidden",
   },
   camera: {
     flex: 1,
   },
   buttonContainer: {
-    flex: 1,
+    flex:            1,
     backgroundColor: "rgba(0,0,0,0.25)",
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent:  "center",
+    alignItems:      "center",
   },
+
+  // ── OCR Chips ────────────────────────────────────────────────
   chipOverlay: {
-    position: "absolute",
-    borderRadius: 999,
+    position:         "absolute",
+    borderRadius:     999,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
+    paddingVertical:   4,
+    borderWidth:       1,
   },
   nameChip: {
-    backgroundColor: "rgba(0,51,102,0.88)",
-    borderColor: COLORS.white,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderColor:     COLORS.textPrimary,
   },
   priceChip: {
-    backgroundColor: "rgba(46,125,50,0.9)",
-    borderColor: COLORS.white,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderColor:     COLORS.success,
   },
   chipText: {
-    color: COLORS.white,
-    fontSize: 12,
+    color:      COLORS.textPrimary,
+    fontSize:   12,
     fontWeight: "700",
   },
+
+  // ── Content panel ─────────────────────────────────────────────
   content: {
-    flex: 1,
+    flex:    1,
     padding: SPACING.md,
   },
   snapButton: {
     marginTop: SPACING.sm,
   },
   injectCard: {
-    marginTop: SPACING.sm,
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.overlay,
+    marginTop:       SPACING.sm,
+    backgroundColor: COLORS.surface,
+    borderRadius:    RADIUS.lg,
+    padding:         SPACING.md,
+    borderWidth:     1,
+    borderColor:     COLORS.overlay,
+    ...SHADOW.card,
   },
   injectTitle: {
     ...TYPOGRAPHY.bodyLarge,
@@ -332,50 +367,52 @@ const styles = StyleSheet.create({
   },
   injectHint: {
     ...TYPOGRAPHY.body,
-    fontSize: 14,
-    marginTop: 4,
+    fontSize:     14,
+    marginTop:    4,
     marginBottom: SPACING.sm,
+    lineHeight:   20,
   },
   fieldRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 10,
-    backgroundColor: COLORS.background,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.overlay,
-    paddingHorizontal: 10,
+    flexDirection:     "row",
+    alignItems:        "center",
+    gap:               8,
+    marginBottom:      10,
+    backgroundColor:   COLORS.background,
+    borderRadius:      RADIUS.sm,
+    borderWidth:       1,
+    borderColor:       COLORS.overlay,
+    paddingHorizontal: 12,
   },
   fieldInput: {
-    flex: 1,
-    height: 44,
-    fontSize: 16,
-    color: COLORS.textPrimary,
+    flex:      1,
+    height:    48,
+    fontSize:  16,
+    color:     COLORS.textPrimary,
   },
   saveButton: {
-    marginTop: 4,
-    height: 62,
+    marginTop: SPACING.sm,
+    height:    58,
   },
   textDumpCard: {
-    marginTop: SPACING.sm,
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.overlay,
+    marginTop:       SPACING.sm,
+    backgroundColor: COLORS.surface,
+    borderRadius:    RADIUS.md,
+    padding:         SPACING.md,
+    borderWidth:     1,
+    borderColor:     COLORS.overlay,
   },
   textDumpTitle: {
     ...TYPOGRAPHY.bodyLarge,
-    fontSize: 16,
+    fontSize:     15,
     marginBottom: 6,
   },
   textDumpValue: {
     ...TYPOGRAPHY.body,
-    fontSize: 14,
+    fontSize:   14,
+    lineHeight: 20,
   },
   manualButton: {
     marginTop: SPACING.sm,
-    height: 72,
+    height:    56,
   },
 });

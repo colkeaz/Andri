@@ -7,67 +7,77 @@ import {
   Vibration,
   ViewStyle,
 } from "react-native";
-import { COLORS, SPACING, TYPOGRAPHY } from "../theme/tokens";
+import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
 
 interface BigButtonProps {
   title: string;
   onPress: () => void;
   color?: string;
+  textColor?: string;
   icon?: React.ReactNode;
   style?: ViewStyle;
+  variant?: "filled" | "outlined" | "ghost";
 }
 
 /**
- * A highly accessible button for elderly users.
- * - Large touch target (min 80px height)
- * - Haptic feedback on press
- * - High contrast
+ * Primary action button – Productive Minimalism edition.
+ * - Minimum 56 px height (well above Apple's 44 px guideline)
+ * - Crisp shadows on white, not heavy elevation
+ * - Haptic + micro-vibration feedback
  */
 export const BigButton: React.FC<BigButtonProps> = ({
   title,
   onPress,
   color = COLORS.primary,
+  textColor,
   icon,
   style,
+  variant = "filled",
 }) => {
   const handlePress = async () => {
-    // 4ms-like click sensation via light haptic + tiny fallback vibration.
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Vibration.vibrate(4);
     onPress();
   };
 
+  const isOutlined = variant === "outlined";
+  const isGhost    = variant === "ghost";
+
+  const resolvedBg    = isOutlined || isGhost ? COLORS.background : color;
+  const resolvedBorder= isOutlined ? color : "transparent";
+  const resolvedText  = textColor ?? (isOutlined || isGhost ? color : COLORS.white);
+
   return (
     <TouchableOpacity
-      activeOpacity={0.8}
+      activeOpacity={0.82}
       onPress={handlePress}
-      style={[styles.container, { backgroundColor: color }, style]}
+      style={[
+        styles.container,
+        { backgroundColor: resolvedBg, borderColor: resolvedBorder },
+        !isGhost && SHADOW.card,
+        style,
+      ]}
     >
       {icon}
-      <Text style={styles.label}>{title}</Text>
+      <Text style={[styles.label, { color: resolvedText, marginLeft: icon ? SPACING.xs : 0 }]}>
+        {title}
+      </Text>
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    height: 90, // Massive touch target
-    width: "100%",
-    borderRadius: 20,
-    flexDirection: "row",
-    alignItems: "center",
+    minHeight:      56,
+    width:          "100%",
+    borderRadius:   RADIUS.lg,
+    flexDirection:  "row",
+    alignItems:     "center",
     justifyContent: "center",
     paddingHorizontal: SPACING.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: COLORS.overlay,
+    borderWidth:    1.5,
   },
   label: {
     ...TYPOGRAPHY.buttonLabel,
-    marginLeft: SPACING.sm,
   },
 });
