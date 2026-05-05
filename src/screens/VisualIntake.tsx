@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,15 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { COLORS, TYPOGRAPHY, SPACING } from '../theme/tokens';
 import { BigButton } from '../components/BigButton';
 import { visionService, ScannedReceiptItem } from '../services/aiService';
-import { Camera as CameraIcon } from 'lucide-react-native';
+import { Camera as CameraIcon, Keyboard } from 'lucide-react-native';
 
-export const VisualIntakeScreen: React.FC = () => {
+export type VisualIntakeScreenProps = {
+  onSwitchToManual?: () => void;
+};
+
+export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
+  onSwitchToManual,
+}) => {
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(false);
   const [items, setItems] = useState<ScannedReceiptItem[]>([]);
@@ -82,12 +88,23 @@ export const VisualIntakeScreen: React.FC = () => {
             />
           </>
         ) : (
-          <BigButton
-            title="SNAP PHOTO"
-            onPress={handleSnap}
-            style={styles.snapButton}
-            icon={<CameraIcon color={COLORS.white} size={32} />}
-          />
+          <>
+            <BigButton
+              title="SNAP PHOTO"
+              onPress={handleSnap}
+              style={styles.snapButton}
+              icon={<CameraIcon color={COLORS.white} size={32} />}
+            />
+            {onSwitchToManual ? (
+              <BigButton
+                title="ADD MANUALLY INSTEAD"
+                color={COLORS.secondary}
+                onPress={onSwitchToManual}
+                style={styles.manualButton}
+                icon={<Keyboard color={COLORS.primary} size={28} />}
+              />
+            ) : null}
+          </>
         )}
       </View>
     </View>
@@ -115,6 +132,10 @@ const styles = StyleSheet.create({
   },
   snapButton: {
     marginTop: SPACING.md,
+  },
+  manualButton: {
+    marginTop: SPACING.sm,
+    height: 72,
   },
   itemRow: {
     flexDirection: 'row',
