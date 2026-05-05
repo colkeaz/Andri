@@ -22,32 +22,111 @@ type ManualAddScreenProps = {
 
 export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, onBack }) => {
   const [name, setName] = useState('');
+  const [category, setCategory] = useState('');
   const [quantity, setQuantity] = useState('');
   const [costPrice, setCostPrice] = useState('');
   const [sellingPrice, setSellingPrice] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const sanitizeInteger = (value: string, maxLength: number) => {
+    return value.replace(/\D/g, '').slice(0, maxLength);
+  };
+
+  const sanitizeDecimal = (value: string, maxLength: number) => {
+    const cleaned = value.replace(/[^\d.]/g, '');
+    const [whole, ...fractionParts] = cleaned.split('.');
+    const fraction = fractionParts.join('');
+    const normalizedWhole = whole.slice(0, maxLength);
+
+    if (cleaned.includes('.')) {
+      return `${normalizedWhole}.${fraction.slice(0, 2)}`;
+    }
+
+    return normalizedWhole;
+  };
+
+  const validateForm = () => {
+    const trimmedName = name.trim();
+    const trimmedCategory = category.trim();
+    const qty = Number(quantity);
+    const cost = Number(costPrice);
+    const sell = Number(sellingPrice);
+
+    if (trimmedName.length < 2 || trimmedName.length > 50) {
+      Alert.alert('Invalid Item Name', 'Item name must be 2 to 50 characters.');
+      return null;
+    }
+
+    if (!/^[A-Za-z0-9\s\-&,().]+$/.test(trimmedName)) {
+      Alert.alert('Invalid Item Name', 'Item name can only use letters, numbers, and basic symbols.');
+      return null;
+    }
+
+    if (trimmedCategory.length < 2 || trimmedCategory.length > 30) {
+      Alert.alert('Invalid Category', 'Category must be 2 to 30 characters.');
+      return null;
+    }
+
+    if (!/^[A-Za-z\s-]+$/.test(trimmedCategory)) {
+      Alert.alert('Invalid Category', 'Category must contain letters only.');
+      return null;
+    }
+
+    if (!quantity || !Number.isInteger(qty) || qty <= 0 || qty > 99999) {
+      Alert.alert('Invalid Quantity', 'Quantity must be a whole number between 1 and 99,999.');
+      return null;
+    }
+
+    if (!costPrice || Number.isNaN(cost) || cost <= 0 || cost >= 1000000) {
+      Alert.alert('Invalid Cost Price', 'Supplier price must be a valid amount greater than 0.');
+      return null;
+    }
+
+    if (!sellingPrice || Number.isNaN(sell) || sell <= 0 || sell >= 1000000) {
+      Alert.alert('Invalid Selling Price', 'Selling price must be a valid amount greater than 0.');
+      return null;
+    }
+
+    return {
+      trimmedName,
+      qty,
+      cost,
+      sell,
+    };
+  };
 
   const handleSave = async () => {
-    if (!name || !quantity || !costPrice || !sellingPrice) {
-      Alert.alert('Missing Info', 'Please fill in all fields so we can track your profit.');
+    if (isSaving) {
       return;
     }
 
+    const validated = validateForm();
+    if (!validated) return;
+
     try {
+      setIsSaving(true);
       const productId = Date.now().toString();
-      await dbService.addProduct(productId, name);
+      await dbService.addProduct(productId, validated.trimmedName);
       await dbService.addBatch(
         `B-${productId}`,
         productId,
-        parseInt(quantity),
-        parseFloat(costPrice),
-        parseFloat(sellingPrice)
+        validated.qty,
+        validated.cost,
+        validated.sell
       );
 
-      Alert.alert('Success!', `${name} has been added to your shop.`);
+      Alert.alert('Success!', `${validated.trimmedName} has been added to your shop.`);
+      setName('');
+      setCategory('');
+      setQuantity('');
+      setCostPrice('');
+      setSellingPrice('');
       onComplete();
     } catch (error) {
       console.error(error);
       Alert.alert('Error', 'Something went wrong while saving.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -76,7 +155,8 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
             style={styles.input} 
             placeholder="e.g. Lucky Me Noodles"
             value={name}
-            onChangeText={setName}
+            onChangeText={(value) => setName(value.slice(0, 50))}
+            maxLength={50}
           />
 
           <View style={styles.row}>
@@ -87,12 +167,19 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
                 placeholder="0"
                 keyboardType="numeric"
                 value={quantity}
-                onChangeText={setQuantity}
+                onChangeText={(value) => setQuantity(sanitizeInteger(value, 5))}
+                maxLength={5}
               />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Category</Text>
-              <TextInput style={styles.input} placeholder="e.g. Snacks" />
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Snacks"
+                value={category}
+                onChangeText={(value) => setCategory(value.replace(/[^A-Za-z\s-]/g, '').slice(0, 30))}
+                maxLength={30}
+              />
             </View>
           </View>
 
@@ -102,7 +189,8 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
             placeholder="₱ 0.00"
             keyboardType="numeric"
             value={costPrice}
-            onChangeText={setCostPrice}
+            onChangeText={(value) => setCostPrice(sanitizeDecimal(value, 7))}
+            maxLength={10}
           />
 
           <Text style={styles.label}>Your Selling Price</Text>
@@ -111,11 +199,12 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
             placeholder="₱ 0.00"
             keyboardType="numeric"
             value={sellingPrice}
-            onChangeText={setSellingPrice}
+            onChangeText={(value) => setSellingPrice(sanitizeDecimal(value, 7))}
+            maxLength={10}
           />
 
           <BigButton 
-            title="SAVE TO INVENTORY" 
+            title={isSaving ? "SAVING..." : "SAVE TO INVENTORY"} 
             color={COLORS.success}
             onPress={handleSave}
             style={styles.saveButton}
