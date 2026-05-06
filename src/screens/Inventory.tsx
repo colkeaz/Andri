@@ -219,6 +219,27 @@ export const InventoryScreen: React.FC = () => {
   // ── Delete ──────────────────────────────────────────────────────────────────
 
   const confirmDelete = (item: InventoryItem) => {
+    const doDelete = async () => {
+      try {
+        if (isUsingFallback) {
+          setInventory((prev) => prev.filter((i) => i.id !== item.id));
+        } else {
+          await dbService.deleteProduct(item.id);
+          await loadInventory();
+        }
+      } catch (err) {
+        Alert.alert("Delete Failed", err instanceof Error ? err.message : "Could not delete product.");
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(`Remove "${item.name}" and all its stock records? This cannot be undone.`);
+      if (confirmed) {
+        doDelete();
+      }
+      return;
+    }
+
     Alert.alert(
       "Delete Product",
       `Remove "${item.name}" and all its stock records? This cannot be undone.`,
@@ -227,14 +248,7 @@ export const InventoryScreen: React.FC = () => {
         {
           text: "Delete",
           style: "destructive",
-          onPress: async () => {
-            try {
-              await dbService.deleteProduct(item.id);
-              await loadInventory();
-            } catch (err) {
-              Alert.alert("Delete Failed", err instanceof Error ? err.message : "Could not delete product.");
-            }
-          },
+          onPress: doDelete,
         },
       ],
     );
@@ -397,9 +411,7 @@ export const InventoryScreen: React.FC = () => {
               <Text style={[TYPOGRAPHY.h2, { flex: 1, marginLeft: 10 }]}>
                 Edit Product
               </Text>
-              <Pressable onPress={closeEdit} hitSlop={8}>
-                <CircleX color={COLORS.textSecondary} size={22} />
-              </Pressable>
+             
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>

@@ -69,13 +69,8 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
       return null;
     }
 
-    if (trimmedCategory.length < 2 || trimmedCategory.length > 30) {
-      Alert.alert('Invalid Category', 'Category must be 2 to 30 characters.');
-      return null;
-    }
-
-    if (!/^[A-Za-z\s-]+$/.test(trimmedCategory)) {
-      Alert.alert('Invalid Category', 'Category must contain letters only.');
+    if (!trimmedCategory) {
+      Alert.alert('Invalid Category', 'Please select a category.');
       return null;
     }
 
@@ -188,8 +183,38 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
             maxLength={50}
           />
 
+          <Text style={styles.label}>Category</Text>
+          <View style={{ position: 'relative', zIndex: 10 }}>
+            <Pressable 
+              style={[styles.input, styles.dropdownTrigger]} 
+              onPress={() => setShowDropdown(!showDropdown)}
+            >
+              <Text style={[styles.dropdownText, !category && { color: COLORS.textSecondary }]}>
+                {category || "Select Category"}
+              </Text>
+              <ChevronDown color={COLORS.textSecondary} size={20} />
+            </Pressable>
+
+            {showDropdown && (
+              <View style={styles.dropdownList}>
+                {["Snacks", "Beverages", "Household", "Other"].map((item) => (
+                  <Pressable 
+                    key={item} 
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setCategory(item);
+                      setShowDropdown(false);
+                    }}
+                  >
+                    <Text style={styles.dropdownItemText}>{item}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
+
           <View style={styles.row}>
-            <View style={{ flex: 1, marginRight: 10 }}>
+            <View style={{ flex: 1, marginRight: showDropdown ? 0 : 0 }}>
               <Text style={styles.label}>Quantity</Text>
               <TextInput 
                 style={styles.input} 
@@ -198,16 +223,6 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
                 value={quantity}
                 onChangeText={(value) => setQuantity(sanitizeInteger(value, 5))}
                 maxLength={5}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Category</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. Snacks"
-                value={category}
-                onChangeText={(value) => setCategory(value.replace(/[^A-Za-z\s-]/g, '').slice(0, 30))}
-                maxLength={30}
               />
             </View>
           </View>
