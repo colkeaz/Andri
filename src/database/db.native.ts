@@ -92,8 +92,9 @@ export const dbService = {
           p.name,
           p.barcode,
           p.min_stock_level,
-          COALESCE(SUM(i.quantity), 0) AS total_stock,
-          COALESCE(MAX(i.selling_price), 0) AS selling_price
+          COALESCE(SUM(i.quantity), 0)    AS total_stock,
+          COALESCE(MAX(i.selling_price), 0) AS selling_price,
+          COALESCE(MAX(i.cost_price), 0)    AS cost_price
         FROM products p
         LEFT JOIN inventory i ON i.product_id = p.id
         GROUP BY p.id`,
@@ -310,6 +311,29 @@ export const dbService = {
     } catch (error) {
       await (await getDB()).execAsync("ROLLBACK");
       console.error("deleteProduct (native) failed", error);
+    }
+  },
+
+  getSalesHistory: async (limit = 50) => {
+    try {
+      const db = await getDB();
+      return await db.getAllAsync<{
+        id: string;
+        productName: string;
+        quantity: number;
+        totalPrice: number;
+        timestamp: string;
+      }>(
+        `SELECT s.id, COALESCE(p.name, 'Unknown') AS productName,
+                s.quantity, s.total_price AS totalPrice, s.timestamp
+         FROM sales s
+         LEFT JOIN products p ON p.id = s.product_id
+         ORDER BY s.timestamp DESC
+         LIMIT ?`,
+        [limit],
+      );
+    } catch {
+      return [];
     }
   },
 

@@ -179,6 +179,7 @@ export const dbService = {
       min_stock_level: number;
       total_stock: number;
       selling_price: number;
+      cost_price: number;
     }[]
   > => {
     try {
@@ -191,18 +192,18 @@ export const dbService = {
           (sum, row) => sum + Number(row.quantity || 0),
           0,
         );
-        const sellingPrice =
-          batches.length > 0
-            ? Number(batches[batches.length - 1].selling_price || 0)
-            : 0;
+        const lastBatch   = batches[batches.length - 1];
+        const sellingPrice = lastBatch ? Number(lastBatch.selling_price || 0) : 0;
+        const costPrice    = lastBatch ? Number(lastBatch.cost_price    || 0) : 0;
 
         return {
-          id: product.id,
-          name: product.name,
-          barcode: product.barcode,
+          id:              product.id,
+          name:            product.name,
+          barcode:         product.barcode,
           min_stock_level: product.min_stock_level,
-          total_stock: totalStock,
-          selling_price: sellingPrice,
+          total_stock:     totalStock,
+          selling_price:   sellingPrice,
+          cost_price:      costPrice,
         };
       });
     } catch {
@@ -338,6 +339,27 @@ export const dbService = {
       writeStore(store);
     } catch (error) {
       console.error("deleteProduct (web) failed", error);
+    }
+  },
+
+  /** Returns the last N sales with product name resolved, newest first */
+  getSalesHistory: async (limit = 50): Promise<
+    { id: string; productName: string; quantity: number; totalPrice: number; timestamp: string }[]
+  > => {
+    try {
+      const { products, sales } = readStore();
+      return [...sales]
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, limit)
+        .map((s) => ({
+          id:          s.id,
+          productName: products.find((p) => p.id === s.product_id)?.name ?? "Unknown",
+          quantity:    s.quantity,
+          totalPrice:  s.total_price,
+          timestamp:   s.timestamp,
+        }));
+    } catch {
+      return [];
     }
   },
 

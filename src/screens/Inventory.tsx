@@ -110,7 +110,7 @@ export const InventoryScreen: React.FC = () => {
           quantity:     p.totalStock,
           min_stock:    p.minStockLevel,
           sellingPrice: p.sellingPrice,
-          costPrice:    0, // aggregated view doesn't expose cost; updated on edit
+          costPrice:    p.costPrice,
         })),
       );
       setIsUsingFallback(false);

@@ -24,6 +24,7 @@ import {
 import Svg, { Circle } from "react-native-svg";
 import { AlertCard } from "../components/AlertCard";
 import { BigButton } from "../components/BigButton";
+import { dbService } from "../database/db";
 import { getAggregatedInventory } from "../logic/inventoryHelper";
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
 
@@ -35,11 +36,33 @@ type DashboardAlert = {
   actionLabel: string;
 };
 
+type SaleRecord = {
+  id: string;
+  productName: string;
+  quantity: number;
+  totalPrice: number;
+  timestamp: string;
+};
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins  = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days  = Math.floor(diff / 86400000);
+  if (mins  < 1)   return "Just now";
+  if (mins  < 60)  return `${mins}m ago`;
+  if (hours < 24)  return `${hours}h ago`;
+  if (days  < 7)   return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
 export const Dashboard: React.FC = () => {
   const router = useRouter();
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
   const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>([]);
   const [profitAlerts, setProfitAlerts] = useState<DashboardAlert[]>([]);
+  const [salesHistory, setSalesHistory] = useState<SaleRecord[]>([]);
+  const [txLimit, setTxLimit]           = useState(5);
   const [storeHealth, setStoreHealth] = useState({
     inventoryValue:  0,
     lowStockCount:   0,
@@ -96,6 +119,10 @@ export const Dashboard: React.FC = () => {
 
         setProfitAlerts(computedAlerts);
         setStoreHealth({ inventoryValue, lowStockCount, totalStockItems, averageMargin });
+
+        // Load sales history in parallel
+        const sales = await dbService.getSalesHistory(30);
+        if (active) setSalesHistory(sales as SaleRecord[]);
       };
 
       loadAlerts();
@@ -311,6 +338,55 @@ export const Dashboard: React.FC = () => {
         >
           <Text style={styles.viewStockBtnText}>View Full Stock →</Text>
         </Pressable>
+
+        {/* ── Recent Transactions ── */}
+        <View style={styles.txSection}>
+          <View style={styles.txHeaderRow}>
+            <Receipt color={COLORS.primary} size={18} />
+            <Text style={[styles.sectionLabel, { marginLeft: 6, marginBottom: 0 }]}>
+              Recent Transactions
+            </Text>
+            {salesHistory.length > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{salesHistory.length}</Text>
+              </View>
+            )}
+          </View>
+
+          {salesHistory.length === 0 ? (
+            <View style={styles.txEmpty}>
+              <Text style={styles.txEmptyText}>No sales recorded yet. Complete a sale to see it here.</Text>
+            </View>
+          ) : (
+            <>
+              {salesHistory.slice(0, txLimit).map((sale) => (
+                <View key={sale.id} style={styles.txCard}>
+                  <View style={styles.txLeft}>
+                    <Text style={styles.txName} numberOfLines={1}>{sale.productName}</Text>
+                    <Text style={styles.txMeta}>{sale.quantity} unit{sale.quantity !== 1 ? "s" : ""} sold</Text>
+                  </View>
+                  <View style={styles.txRight}>
+                    <Text style={styles.txAmount}>₱{sale.totalPrice.toFixed(2)}</Text>
+                    <Text style={styles.txTime}>{timeAgo(sale.timestamp)}</Text>
+                  </View>
+                </View>
+              ))}
+
+              {salesHistory.length > 5 && (
+                <Pressable
+                  style={({ pressed }) => [styles.txMoreBtn, pressed && { opacity: 0.7 }]}
+                  onPress={() => setTxLimit((prev) => prev > 5 ? 5 : salesHistory.length)}
+                >
+                  <Text style={styles.txMoreText}>
+                    {txLimit > 5
+                      ? "Show less ↑"
+                      : `Show ${salesHistory.length - 5} more ↓`}
+                  </Text>
+                </Pressable>
+              )}
+            </>
+          )}
+        </View>
 
       </ScrollView>
 
@@ -600,5 +676,84 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.8,
+  },
+
+  // Transactions
+  txSection: {
+    marginTop: SPACING.lg,
+  },
+  txHeaderRow: {
+    flexDirection:  "row",
+    alignItems:     "center",
+    marginBottom:   SPACING.sm,
+  },
+  txEmpty: {
+    backgroundColor: COLORS.surface,
+    borderRadius:    RADIUS.md,
+    padding:         SPACING.md,
+    borderWidth:     1,
+    borderColor:     COLORS.overlay,
+    alignItems:      "center",
+  },
+  txEmptyText: {
+    ...TYPOGRAPHY.body,
+    color:     COLORS.textSecondary,
+    fontSize:  14,
+    textAlign: "center",
+  },
+  txCard: {
+    flexDirection:   "row",
+    alignItems:      "center",
+    backgroundColor: COLORS.surface,
+    borderRadius:    RADIUS.md,
+    borderWidth:     1,
+    borderColor:     COLORS.overlay,
+    paddingVertical:   12,
+    paddingHorizontal: SPACING.md,
+    marginBottom:    SPACING.xs,
+    ...SHADOW.card,
+  },
+  txLeft: {
+    flex: 1,
+    marginRight: SPACING.sm,
+  },
+  txName: {
+    ...TYPOGRAPHY.body,
+    fontWeight: "700",
+    fontSize:   15,
+    color:      COLORS.textPrimary,
+  },
+  txMeta: {
+    ...TYPOGRAPHY.caption,
+    marginTop: 2,
+  },
+  txRight: {
+    alignItems: "flex-end",
+  },
+  txAmount: {
+    fontSize:   17,
+    fontWeight: "800",
+    color:      COLORS.success,
+    fontFamily: "Inter_700Bold",
+  },
+  txTime: {
+    ...TYPOGRAPHY.caption,
+    marginTop: 3,
+    color:     COLORS.textSecondary,
+  },
+  txMoreBtn: {
+    marginTop:       SPACING.xs,
+    paddingVertical: 10,
+    borderRadius:    RADIUS.sm,
+    borderWidth:     1,
+    borderColor:     COLORS.overlay,
+    backgroundColor: COLORS.surface,
+    alignItems:      "center",
+  },
+  txMoreText: {
+    ...TYPOGRAPHY.body,
+    color:      COLORS.primary,
+    fontWeight: "700",
+    fontSize:   14,
   },
 });
