@@ -21,7 +21,7 @@ import {
   Text,
   View,
 } from "react-native";
-import Svg, { Circle } from "react-native-svg";
+
 import { AlertCard } from "../components/AlertCard";
 import { BigButton } from "../components/BigButton";
 import { dbService } from "../database/db";
@@ -196,7 +196,6 @@ export const Dashboard: React.FC = () => {
 
   // ── Mini donut ring ────────────────────────────────────────────
   const ProgressRing = ({
-    percent,
     label,
     value,
     color = COLORS.primary,
@@ -206,42 +205,9 @@ export const Dashboard: React.FC = () => {
     value: string;
     color?: string;
   }) => {
-    const size        = 100;
-    const strokeWidth = 9;
-    const radius      = (size - strokeWidth) / 2;
-    const circumference = 2 * Math.PI * radius;
-    const offset      = circumference - (Math.max(0, Math.min(100, percent)) / 100) * circumference;
-
     return (
       <View style={styles.ringCard}>
-        {/* Ring + centered value overlay */}
-        <View style={{ width: size, height: size }}>
-          <Svg width={size} height={size}>
-            {/* Track */}
-            <Circle
-              cx={size / 2} cy={size / 2} r={radius}
-              stroke={COLORS.overlay} strokeWidth={strokeWidth} fill="transparent"
-            />
-            {/* Progress */}
-            <Circle
-              cx={size / 2} cy={size / 2} r={radius}
-              stroke={color} strokeWidth={strokeWidth}
-              strokeLinecap="round"
-              strokeDasharray={`${circumference} ${circumference}`}
-              strokeDashoffset={offset}
-              fill="transparent"
-              transform={`rotate(-90 ${size / 2} ${size / 2})`}
-            />
-          </Svg>
-          {/* Value centered inside the ring */}
-          <View style={[
-            { position: "absolute", top: 0, left: 0, width: size, height: size },
-            styles.ringCenter,
-          ]}>
-            <Text style={[styles.ringValue, { color }]}>{value}</Text>
-          </View>
-        </View>
-        {/* Label below the ring */}
+        <Text style={[styles.ringValue, { color, fontSize: 32 }]}>{value}</Text>
         <Text style={styles.ringLabel}>{label}</Text>
       </View>
     );
@@ -436,9 +402,6 @@ export const Dashboard: React.FC = () => {
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <Text style={TYPOGRAPHY.h2}>Suggestion Details</Text>
-              <Pressable onPress={() => setSelectedAlertId(null)} hitSlop={8}>
-                <CircleX color={COLORS.textSecondary} size={22} />
-              </Pressable>
             </View>
             <Text style={styles.modalTitle}>{selectedAlert?.title}</Text>
             <Text style={styles.modalMessage}>{selectedAlert?.message}</Text>
