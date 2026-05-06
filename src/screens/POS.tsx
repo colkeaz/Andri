@@ -196,7 +196,7 @@ export const POSScreen: React.FC = () => {
           <Text style={styles.totalAmount}>₱{total.toFixed(2)}</Text>
         </View>
 
-        {/* Cart list — flex:1 so it takes all available space */}
+        {/* Cart list */}
         <ScrollView style={styles.cartList} showsVerticalScrollIndicator={false}>
           {cart.length === 0 ? (
             <View style={styles.emptyCart}>
@@ -204,50 +204,43 @@ export const POSScreen: React.FC = () => {
             </View>
           ) : (
             cart.map((item) => {
-              // effectiveStock = total DB stock minus quantity already reserved in cart
-              const totalStock    = inventory.find((s) => s.id === item.productId)?.totalStock ?? 0;
-              const effectiveStock = totalStock - item.quantity; // remaining addable
+              const totalStock     = inventory.find((s) => s.id === item.productId)?.totalStock ?? 0;
+              const effectiveStock = totalStock - item.quantity;
               const atMax          = effectiveStock <= 0;
               return (
                 <View key={item.id} style={styles.cartItem}>
-                  <View style={styles.cartItemInfo}>
-                    <Text style={styles.cartItemName}>{item.name}</Text>
-                    <Text style={styles.cartItemMeta}>
-                      ₱{item.unitPrice.toFixed(2)} each
-                      {atMax && <Text style={styles.maxTag}>  · MAX</Text>}
-                    </Text>
-                  </View>
 
-                  {/* Qty stepper */}
+                  {/* Stepper */}
                   <View style={styles.stepper}>
-                    <TouchableOpacity
-                      style={styles.stepBtn}
-                      onPress={() => updateCartQty(item.id, -1)}
-                      hitSlop={6}
-                    >
-                      <Minus color={COLORS.textPrimary} size={14} />
+                    <TouchableOpacity style={styles.stepBtn} onPress={() => updateCartQty(item.id, -1)} hitSlop={8}>
+                      <Minus color={COLORS.textPrimary} size={11} />
                     </TouchableOpacity>
                     <Text style={styles.stepQty}>{item.quantity}</Text>
                     <TouchableOpacity
                       style={[styles.stepBtn, atMax && styles.stepBtnDisabled]}
                       onPress={() => { if (!atMax) updateCartQty(item.id, 1); }}
-                      hitSlop={6}
+                      hitSlop={8}
                       disabled={atMax}
                     >
-                      <Plus color={atMax ? COLORS.textSecondary : COLORS.textPrimary} size={14} />
+                      <Plus color={atMax ? COLORS.textSecondary : COLORS.textPrimary} size={11} />
                     </TouchableOpacity>
                   </View>
 
-                  <Text style={styles.cartItemTotal}>
-                    ₱{(item.quantity * item.unitPrice).toFixed(2)}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => removeFromCart(item.id)}
-                    hitSlop={8}
-                    style={{ marginLeft: SPACING.xs }}
-                  >
-                    <Trash2 color={COLORS.danger} size={16} />
-                  </TouchableOpacity>
+                  {/* Name · price */}
+                  <View style={styles.cartItemInfo}>
+                    <Text style={styles.cartItemName} numberOfLines={1}>
+                      {item.name}
+                      <Text style={styles.cartItemMeta}>  ₱{item.unitPrice.toFixed(2)}{atMax && <Text style={styles.maxTag}> MAX</Text>}</Text>
+                    </Text>
+                  </View>
+
+                  {/* Subtotal + remove */}
+                  <View style={styles.cartItemRight}>
+                    <Text style={styles.cartItemTotal}>₱{(item.quantity * item.unitPrice).toFixed(2)}</Text>
+                    <TouchableOpacity onPress={() => removeFromCart(item.id)} hitSlop={10}>
+                      <Trash2 color={COLORS.danger} size={13} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               );
             })
@@ -256,50 +249,52 @@ export const POSScreen: React.FC = () => {
 
         <View style={styles.divider} />
 
-        {/* Quick Add Grid */}
+        {/* Quick Add — horizontal scroll row */}
         <View style={styles.quickSection}>
           <View style={styles.quickHeader}>
-            <Text style={styles.quickTitle}>Quick Add Items</Text>
-            <Text style={styles.quickSubtitle}>Tap for non-barcoded items</Text>
-          </View>
-          
-          <View style={styles.gridContainer}>
-            {inventory.slice(0, 6).map((item) => {
-              const cartQty        = cartQtyFor(item.id);
-              const effectiveStock = item.totalStock - cartQty;
-              const isLow          = item.totalStock > 0 && item.totalStock < 5;
-              const isOut          = effectiveStock <= 0;
-              
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.gridItem,
-                    isLow && styles.gridItemLow,
-                    isOut && styles.gridItemOut,
-                  ]}
-                  onPress={() => { if (!isOut) { addItemToCart(item); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
-                  disabled={isOut}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.gridItemName, isOut && styles.gridItemNameOut]} numberOfLines={2}>
-                    {item.name}
-                  </Text>
-                  <View style={styles.gridItemFooter}>
-                    <Text style={styles.gridItemPrice}>₱{item.sellingPrice.toFixed(2)}</Text>
-                    <Text style={[styles.gridItemStock, isLow && { color: COLORS.error }]}>
-                      {isOut ? "Out" : `${effectiveStock} left`}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+            <Text style={styles.quickTitle}>Quick Add</Text>
+            <Text style={styles.quickSubtitle}>Tap to add · swipe for more</Text>
           </View>
 
-          {!isLoadingInventory && inventory.length === 0 && (
+          {!isLoadingInventory && inventory.length === 0 ? (
             <View style={styles.emptyQuickAdd}>
               <Text style={styles.emptyQuickAddText}>No items found. Add stock to see them here.</Text>
             </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.quickRow}
+            >
+              {inventory.map((item) => {
+                const cartQty        = cartQtyFor(item.id);
+                const effectiveStock = item.totalStock - cartQty;
+                const isLow          = item.totalStock > 0 && item.totalStock < 5;
+                const isOut          = effectiveStock <= 0;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[
+                      styles.quickChip,
+                      isLow && styles.quickChipLow,
+                      isOut && styles.quickChipOut,
+                      cartQty > 0 && styles.quickChipActive,
+                    ]}
+                    onPress={() => { if (!isOut) { addItemToCart(item); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
+                    disabled={isOut}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.quickChipName, isOut && styles.quickChipNameOut]} numberOfLines={2}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.quickChipPrice}>₱{item.sellingPrice.toFixed(2)}</Text>
+                    <Text style={[styles.quickChipStock, isLow && { color: COLORS.error }]}>
+                      {isOut ? "Out" : `${effectiveStock} left`}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           )}
         </View>
 
@@ -425,52 +420,55 @@ const styles = StyleSheet.create({
   itemCountText: { ...TYPOGRAPHY.caption, color: COLORS.textSecondary, marginTop: 2 },
   totalAmount:   { fontSize: 30, fontWeight: "800", color: COLORS.primary, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
 
-  // Cart — flex:1 fills remaining space
+  // Cart — compact single-line rows
   cartList:      { flex: 1 },
-  emptyCart:     { paddingVertical: SPACING.sm, alignItems: "center" },
-  emptyCartText: { ...TYPOGRAPHY.body, fontSize: 14 },
-  cartItem:      { flexDirection: "row", alignItems: "center", paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: COLORS.overlay },
+  emptyCart:     { paddingVertical: SPACING.xs, alignItems: "center" },
+  emptyCartText: { ...TYPOGRAPHY.caption, fontSize: 13 },
+  cartItem:      { flexDirection: "row", alignItems: "center", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: COLORS.overlay, gap: 6 },
   cartItemInfo:  { flex: 1 },
-  cartItemName:  { ...TYPOGRAPHY.body, color: COLORS.textPrimary, fontWeight: "600", fontSize: 14 },
-  cartItemMeta:  { ...TYPOGRAPHY.caption },
+  cartItemName:  { fontSize: 13, fontWeight: "600", color: COLORS.textPrimary },
+  cartItemMeta:  { fontSize: 11, color: COLORS.textSecondary },
   maxTag:        { color: COLORS.warning, fontWeight: "700" },
-  cartItemTotal: { ...TYPOGRAPHY.body, fontSize: 14, color: COLORS.primary, fontWeight: "700", marginHorizontal: SPACING.xs },
+  cartItemRight: { alignItems: "flex-end", gap: 1 },
+  cartItemTotal: { fontSize: 13, color: COLORS.primary, fontWeight: "700" },
+  trashBtn:      { alignItems: "center" },
 
-  // Cart stepper
-  stepper:         { flexDirection: "row", alignItems: "center", gap: 4, marginHorizontal: SPACING.xs },
-  stepBtn:         { width: 26, height: 26, borderRadius: RADIUS.sm, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.overlay, alignItems: "center", justifyContent: "center" },
+  // Compact stepper
+  stepper:         { flexDirection: "row", alignItems: "center", gap: 2 },
+  stepBtn:         { width: 22, height: 22, borderRadius: RADIUS.sm, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.overlay, alignItems: "center", justifyContent: "center" },
   stepBtnDisabled: { opacity: 0.35 },
-  stepQty:         { ...TYPOGRAPHY.body, fontSize: 14, fontWeight: "700", minWidth: 22, textAlign: "center" },
+  stepQty:         { fontSize: 13, fontWeight: "700", minWidth: 20, textAlign: "center", color: COLORS.textPrimary },
 
   // Divider
   divider: { height: 1, backgroundColor: COLORS.overlay, marginVertical: SPACING.sm },
 
-  // Quick Add Grid
-  quickSection: { paddingBottom: SPACING.md },
-  quickHeader: { marginBottom: 12 },
-  quickTitle: { ...TYPOGRAPHY.h3, fontSize: 18, color: COLORS.textPrimary },
-  quickSubtitle: { ...TYPOGRAPHY.caption, color: COLORS.textSecondary, marginTop: 2 },
-  gridContainer: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  gridItem: {
-    width: "48.5%",
-    height: 94,
+  // Quick Add — horizontal scroll (compact)
+  quickSection:        { paddingBottom: 4 },
+  quickHeader:         { marginBottom: 5, flexDirection: "row", alignItems: "center", gap: 6 },
+  quickTitle:          { ...TYPOGRAPHY.caption, fontSize: 12, fontWeight: "700", color: COLORS.textPrimary },
+  quickSubtitle:       { ...TYPOGRAPHY.caption, fontSize: 10, color: COLORS.textSecondary },
+  quickRow:            { flexDirection: "row", gap: 6, paddingBottom: 2 },
+  quickChip: {
+    width: 85,
     backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: COLORS.overlay,
-    padding: 12,
+    padding: 7,
     justifyContent: "space-between",
     ...SHADOW.card,
   },
-  gridItemLow: { borderColor: COLORS.warning, borderWidth: 2, backgroundColor: COLORS.warning + '08' },
-  gridItemOut: { opacity: 0.4, backgroundColor: "#F0F0F0", borderColor: "transparent" },
-  gridItemName: { ...TYPOGRAPHY.body, fontSize: 14, fontWeight: "700", color: COLORS.textPrimary, lineHeight: 18 },
-  gridItemNameOut: { color: COLORS.textSecondary },
-  gridItemFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
-  gridItemPrice: { fontSize: 15, fontWeight: "800", color: COLORS.primary, fontFamily: "Inter_700Bold" },
-  gridItemStock: { ...TYPOGRAPHY.caption, fontSize: 11, fontWeight: "700" },
-  emptyQuickAdd: { padding: 20, alignItems: "center", backgroundColor: COLORS.surface, borderRadius: RADIUS.md, borderStyle: "dashed", borderWidth: 1, borderColor: COLORS.overlay },
-  emptyQuickAddText: { ...TYPOGRAPHY.caption, textAlign: "center" },
+  quickChipActive:       { borderColor: COLORS.primary, borderWidth: 1.5, backgroundColor: COLORS.primary + '0D' },
+  quickChipLow:          { borderColor: COLORS.warning, borderWidth: 1.5 },
+  quickChipOut:          { opacity: 0.4 },
+  quickChipBadge:        { position: "absolute", top: -5, right: -5, backgroundColor: COLORS.primary, borderRadius: 99, minWidth: 16, height: 16, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
+  quickChipBadgeText:    { color: COLORS.white, fontSize: 9, fontWeight: "800" },
+  quickChipName:         { ...TYPOGRAPHY.caption, fontSize: 11, fontWeight: "700", color: COLORS.textPrimary, lineHeight: 14 },
+  quickChipNameOut:      { color: COLORS.textSecondary },
+  quickChipPrice:        { fontSize: 12, fontWeight: "800", color: COLORS.primary, fontFamily: "Inter_700Bold", marginTop: 3 },
+  quickChipStock:        { ...TYPOGRAPHY.caption, fontSize: 9, fontWeight: "600", color: COLORS.textSecondary },
+  emptyQuickAdd:         { padding: 12, alignItems: "center", backgroundColor: COLORS.surface, borderRadius: RADIUS.md, borderStyle: "dashed", borderWidth: 1, borderColor: COLORS.overlay },
+  emptyQuickAddText:     { ...TYPOGRAPHY.caption, textAlign: "center" },
 
   // Checkout
   checkoutBtn: { height: 64, borderRadius: RADIUS.lg },
