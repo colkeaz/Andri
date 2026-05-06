@@ -6,6 +6,7 @@ import {
   Edit3,
   Package,
   Scan,
+  Search,
   Trash2,
 } from "lucide-react-native";
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -86,6 +87,7 @@ export const InventoryScreen: React.FC = () => {
   const [showScanner, setShowScanner] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Edit sheet state
   const [editTarget, setEditTarget] = useState<InventoryItem | null>(null);
@@ -233,7 +235,7 @@ export const InventoryScreen: React.FC = () => {
     };
 
     if (Platform.OS === 'web') {
-      const confirmed = window.confirm(`Remove "${item.name}" and all its stock records? This cannot be undone.`);
+      const confirmed = window.confirm(`I-remove ang "${item.name}" at lahat ng stock records nito? Hindi na ito maibabalik.`);
       if (confirmed) {
         doDelete();
       }
@@ -255,6 +257,12 @@ export const InventoryScreen: React.FC = () => {
   };
 
   // ── Derived ─────────────────────────────────────────────────────────────────
+
+  const filteredInventory = searchQuery.trim()
+    ? inventory.filter((i) =>
+        i.name.toLowerCase().includes(searchQuery.trim().toLowerCase()),
+      )
+    : inventory;
 
   const lowStockCount = inventory.filter((i) => i.quantity <= i.min_stock).length;
 
@@ -358,6 +366,25 @@ export const InventoryScreen: React.FC = () => {
         </View>
       )}
 
+      {/* Search bar */}
+      <View style={styles.searchRow}>
+        <Search color={COLORS.textSecondary} size={20} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search inventory..."
+          placeholderTextColor={COLORS.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          returnKeyType="search"
+          clearButtonMode="while-editing"
+        />
+        {searchQuery.length > 0 && (
+          <Pressable onPress={() => setSearchQuery("")} hitSlop={10}>
+            <CircleX color={COLORS.textSecondary} size={20} />
+          </Pressable>
+        )}
+      </View>
+
       {isLoading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -365,7 +392,7 @@ export const InventoryScreen: React.FC = () => {
         </View>
       ) : (
         <FlatList
-          data={inventory}
+          data={filteredInventory}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
@@ -518,7 +545,7 @@ export const InventoryScreen: React.FC = () => {
                   return (
                     <View style={[styles.marginChip, { borderColor: color }]}>
                       <Text style={[styles.marginChipText, { color }]}>
-                        Margin: {margin.toFixed(1)}% {margin >= 12 ? "✅" : "⚠️ Below 12%"}
+                        Tubo: {margin.toFixed(1)}% {margin >= 12 ? "✅" : "⚠️ Mababa sa 12%"}
                       </Text>
                     </View>
                   );
@@ -541,7 +568,7 @@ export const InventoryScreen: React.FC = () => {
                 disabled={isSaving}
               >
                 <Text style={styles.btnPrimaryText}>
-                  {isSaving ? "Saving…" : "Save Changes"}
+                  {isSaving ? "Saving..." : "Save Changes"}
                 </Text>
               </Pressable>
             </View>
@@ -561,12 +588,12 @@ export const InventoryScreen: React.FC = () => {
           />
           <View style={styles.scannerOverlay}>
             <View style={styles.scannerFrame} />
-            <Text style={styles.scannerHint}>Align barcode within the frame</Text>
+            <Text style={styles.scannerHint}>I-align ang barcode sa loob ng frame</Text>
             <TouchableOpacity 
               style={styles.cancelScanBtn}
               onPress={() => setShowScanner(false)}
             >
-              <Text style={styles.cancelScanBtnText}>CANCEL</Text>
+              <Text style={styles.cancelScanBtnText}>KANSELAHIN</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -637,6 +664,28 @@ const styles = StyleSheet.create({
   demoBarText: {
     ...TYPOGRAPHY.caption,
     color: "#865200",
+  },
+
+  // Search
+  searchRow: {
+    flexDirection:     "row",
+    alignItems:        "center",
+    marginHorizontal:  SPACING.md,
+    marginBottom:      SPACING.xs,
+    backgroundColor:   COLORS.surface,
+    borderRadius:      RADIUS.md,
+    borderWidth:       1,
+    borderColor:       COLORS.overlay,
+    paddingHorizontal: SPACING.sm,
+    height:            52,
+    gap:               10,
+  },
+  searchInput: {
+    flex:       1,
+    fontSize:   18,
+    color:      COLORS.textPrimary,
+    fontFamily: "Inter_400Regular",
+    paddingVertical: 0,
   },
 
   // Loading
@@ -722,9 +771,9 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   actionBtn: {
-    width:           36,
-    height:          36,
-    borderRadius:    RADIUS.sm,
+    width:           48,
+    height:          48,
+    borderRadius:    RADIUS.md,
     backgroundColor: COLORS.surface,
     borderWidth:     1,
     borderColor:     COLORS.overlay,
