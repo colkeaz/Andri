@@ -5,8 +5,11 @@ import {
   CircleX,
   Edit3,
   Package,
+  Scan,
   Trash2,
 } from "lucide-react-native";
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -80,6 +83,9 @@ export const InventoryScreen: React.FC = () => {
   const [isRefreshing,   setIsRefreshing]   = useState(false);
   const [isUsingFallback, setIsUsingFallback] = useState(false);
   const [isSaving,       setIsSaving]       = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [isScanning, setIsScanning] = useState(false);
 
   // Edit sheet state
   const [editTarget, setEditTarget] = useState<InventoryItem | null>(null);
@@ -154,6 +160,26 @@ export const InventoryScreen: React.FC = () => {
 
   const closeEdit = () => {
     setEditTarget(null);
+  };
+
+  const handleBarCodeScanned = ({ data }: { data: string }) => {
+    if (isScanning) return;
+    setIsScanning(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setForm((f) => ({ ...f, barcode: data }));
+    setShowScanner(false);
+    setIsScanning(false);
+  };
+
+  const startScanning = async () => {
+    if (!permission?.granted) {
+      const result = await requestPermission();
+      if (!result.granted) {
+        Alert.alert('Permission Required', 'Camera permission is needed to scan barcodes.');
+        return;
+      }
+    }
+    setShowScanner(true);
   };
 
   const handleSave = async () => {
@@ -391,15 +417,23 @@ export const InventoryScreen: React.FC = () => {
 
               {/* Barcode */}
               <Field label="Barcode (optional)">
-                <TextInput
-                  style={styles.input}
-                  value={form.barcode}
-                  onChangeText={(v) => setForm((f) => ({ ...f, barcode: v }))}
-                  placeholder="e.g. 4800016642158"
-                  placeholderTextColor={COLORS.textSecondary}
-                  keyboardType="number-pad"
-                  returnKeyType="next"
-                />
+                <View style={styles.barcodeInputRow}>
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    value={form.barcode}
+                    onChangeText={(v) => setForm((f) => ({ ...f, barcode: v }))}
+                    placeholder="e.g. 4800016642158"
+                    placeholderTextColor={COLORS.textSecondary}
+                    keyboardType="number-pad"
+                    returnKeyType="next"
+                  />
+                  <TouchableOpacity 
+                    style={styles.inlineScanBtn}
+                    onPress={startScanning}
+                  >
+                    <Scan color={COLORS.white} size={20} />
+                  </TouchableOpacity>
+                </View>
               </Field>
 
               {/* Prices row */}
@@ -501,6 +535,29 @@ export const InventoryScreen: React.FC = () => {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Barcode Scanner Modal */}
+      <Modal visible={showScanner} animationType="slide">
+        <View style={styles.scannerContainer}>
+          <CameraView
+            style={StyleSheet.absoluteFill}
+            onBarcodeScanned={isScanning ? undefined : handleBarCodeScanned}
+            barcodeScannerSettings={{
+              barcodeTypes: ["qr", "ean13", "ean8", "upc_a"],
+            }}
+          />
+          <View style={styles.scannerOverlay}>
+            <View style={styles.scannerFrame} />
+            <Text style={styles.scannerHint}>Align barcode within the frame</Text>
+            <TouchableOpacity 
+              style={styles.cancelScanBtn}
+              onPress={() => setShowScanner(false)}
+            >
+              <Text style={styles.cancelScanBtnText}>CANCEL</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -797,4 +854,54 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.8,
   },
+  barcodeInputRow: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+    alignItems: 'center',
+  },
+  inlineScanBtn: {
+    width: 48,
+    height: 48,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scannerContainer: {
+    flex: 1,
+    backgroundColor: 'black',
+  },
+  scannerOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  scannerFrame: {
+    width: 250,
+    height: 250,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  scannerHint: {
+    color: COLORS.white,
+    marginTop: 20,
+    ...TYPOGRAPHY.bodyBold,
+  },
+  cancelScanBtn: {
+    position: 'absolute',
+    bottom: 50,
+    paddingHorizontal: 40,
+    paddingVertical: 15,
+    borderRadius: RADIUS.md,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+  },
+  cancelScanBtnText: {
+    color: COLORS.white,
+    fontWeight: '800',
+    fontSize: 16,
+  }
 });

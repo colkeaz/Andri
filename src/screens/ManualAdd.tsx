@@ -13,7 +13,10 @@ import {
 import { COLORS, TYPOGRAPHY, SPACING } from '../theme/tokens';
 import { BigButton } from '../components/BigButton';
 import { dbService } from '../database/db';
-import { Save, Package, ArrowLeft } from 'lucide-react-native';
+import { Save, Package, ArrowLeft, Scan } from 'lucide-react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
+import { Modal, TouchableOpacity } from 'react-native';
 
 type ManualAddScreenProps = {
   onComplete: () => void;
@@ -26,7 +29,11 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
   const [quantity, setQuantity] = useState('');
   const [costPrice, setCostPrice] = useState('');
   const [sellingPrice, setSellingPrice] = useState('');
+  const [barcode, setBarcode] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [isScanning, setIsScanning] = useState(false);
 
   const sanitizeInteger = (value: string, maxLength: number) => {
     return value.replace(/\D/g, '').slice(0, maxLength);
@@ -92,7 +99,28 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
       qty,
       cost,
       sell,
+      barcode: barcode.trim() || null,
     };
+  };
+
+  const handleBarCodeScanned = ({ data }: { data: string }) => {
+    if (isScanning) return;
+    setIsScanning(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setBarcode(data);
+    setShowScanner(false);
+    setIsScanning(false);
+  };
+
+  const startScanning = async () => {
+    if (!permission?.granted) {
+      const result = await requestPermission();
+      if (!result.granted) {
+        Alert.alert('Permission Required', 'Camera permission is needed to scan barcodes.');
+        return;
+      }
+    }
+    setShowScanner(true);
   };
 
   const handleSave = async () => {
@@ -106,7 +134,7 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
     try {
       setIsSaving(true);
       const productId = Date.now().toString();
-      await dbService.addProduct(productId, validated.trimmedName);
+      await dbService.addProduct(productId, validated.trimmedName, validated.barcode);
       await dbService.addBatch(
         `B-${productId}`,
         productId,
@@ -121,6 +149,7 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
       setQuantity('');
       setCostPrice('');
       setSellingPrice('');
+      setBarcode('');
       onComplete();
     } catch (error) {
       console.error(error);
@@ -203,6 +232,22 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
             maxLength={10}
           />
 
+          <Text style={styles.label}>Barcode (Optional)</Text>
+          <View style={styles.barcodeContainer}>
+            <TextInput 
+              style={[styles.input, { flex: 1, marginBottom: 0 }]} 
+              placeholder="Scan or type barcode"
+              value={barcode}
+              onChangeText={setBarcode}
+            />
+            <TouchableOpacity 
+              style={styles.scanButton} 
+              onPress={startScanning}
+            >
+              <Scan color={COLORS.white} size={24} />
+            </TouchableOpacity>
+          </View>
+
           <BigButton 
             title={isSaving ? "SAVING..." : "SAVE TO INVENTORY"} 
             color={COLORS.success}
@@ -211,6 +256,30 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
             icon={<Save color={COLORS.white} size={28} />}
           />
         </View>
+
+        {/* Scanner Modal */}
+        <Modal visible={showScanner} animationType="slide">
+          <View style={styles.scannerContainer}>
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              onBarcodeScanned={isScanning ? undefined : handleBarCodeScanned}
+              barcodeScannerSettings={{
+                barcodeTypes: ["qr", "ean13", "ean8", "upc_a"],
+              }}
+            />
+            <View style={styles.scannerOverlay}>
+              <View style={styles.scannerFrame} />
+              <Text style={styles.scannerHint}>Align barcode within the frame</Text>
+              <BigButton 
+                title="CANCEL" 
+                variant="outlined"
+                color={COLORS.white}
+                onPress={() => setShowScanner(false)}
+                style={styles.cancelScanBtn}
+              />
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -279,5 +348,47 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     marginTop: 10,
+  },
+  barcodeContainer: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  scanButton: {
+    backgroundColor: COLORS.primary,
+    height: 60,
+    width: 60,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scannerContainer: {
+    flex: 1,
+    backgroundColor: 'black',
+  },
+  scannerOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  scannerFrame: {
+    width: 250,
+    height: 250,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  scannerHint: {
+    color: COLORS.white,
+    marginTop: 20,
+    ...TYPOGRAPHY.bodyBold,
+  },
+  cancelScanBtn: {
+    position: 'absolute',
+    bottom: 50,
+    width: '80%',
   }
 });

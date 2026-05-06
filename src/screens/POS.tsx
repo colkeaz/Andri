@@ -256,54 +256,60 @@ export const POSScreen: React.FC = () => {
 
         <View style={styles.divider} />
 
-        {/* Quick Add — compact horizontal chips */}
+        {/* Quick Add Grid */}
         <View style={styles.quickSection}>
-          <Text style={styles.quickTitle}>Quick Add</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.quickRow}
-          >
-            {inventory.map((item) => {
+          <View style={styles.quickHeader}>
+            <Text style={styles.quickTitle}>Quick Add Items</Text>
+            <Text style={styles.quickSubtitle}>Tap for non-barcoded items</Text>
+          </View>
+          
+          <View style={styles.gridContainer}>
+            {inventory.slice(0, 6).map((item) => {
               const cartQty        = cartQtyFor(item.id);
               const effectiveStock = item.totalStock - cartQty;
               const isLow          = item.totalStock > 0 && item.totalStock < 5;
               const isOut          = effectiveStock <= 0;
+              
               return (
                 <TouchableOpacity
                   key={item.id}
                   style={[
-                    styles.quickChip,
-                    isLow && styles.quickChipLow,
-                    isOut && styles.quickChipOut,
+                    styles.gridItem,
+                    isLow && styles.gridItemLow,
+                    isOut && styles.gridItemOut,
                   ]}
-                  onPress={() => { if (!isOut) addItemToCart(item); }}
+                  onPress={() => { if (!isOut) { addItemToCart(item); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
                   disabled={isOut}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.quickChipName, isOut && styles.quickChipNameOut]} numberOfLines={1}>
+                  <Text style={[styles.gridItemName, isOut && styles.gridItemNameOut]} numberOfLines={2}>
                     {item.name}
                   </Text>
-                  <Text style={[styles.quickChipStock, isOut && { color: COLORS.textSecondary }]}>
-                    {isOut ? "Out" : `${effectiveStock} left`}
-                  </Text>
+                  <View style={styles.gridItemFooter}>
+                    <Text style={styles.gridItemPrice}>₱{item.sellingPrice.toFixed(2)}</Text>
+                    <Text style={[styles.gridItemStock, isLow && { color: COLORS.error }]}>
+                      {isOut ? "Out" : `${effectiveStock} left`}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               );
             })}
-            {!isLoadingInventory && inventory.length === 0 && (
-              <Text style={[TYPOGRAPHY.body, { paddingVertical: SPACING.xs }]}>
-                Add items in the Stock tab first.
-              </Text>
-            )}
-          </ScrollView>
+          </View>
+
+          {!isLoadingInventory && inventory.length === 0 && (
+            <View style={styles.emptyQuickAdd}>
+              <Text style={styles.emptyQuickAddText}>No items found. Add stock to see them here.</Text>
+            </View>
+          )}
         </View>
 
-        {/* Checkout */}
+        {/* Checkout Button */}
         <BigButton
-          title={isProcessingSale ? "Processing…" : `Complete Sale  ₱${total.toFixed(2)}`}
+          title={isProcessingSale ? "PROCESSING..." : `COMPLETE SALE · ₱${total.toFixed(2)}`}
           color={COLORS.success}
           onPress={openConfirm}
           style={styles.checkoutBtn}
+          icon={<CheckCircle2 color={COLORS.white} size={28} />}
         />
       </View>
 
@@ -439,26 +445,35 @@ const styles = StyleSheet.create({
   // Divider
   divider: { height: 1, backgroundColor: COLORS.overlay, marginVertical: SPACING.sm },
 
-  // Quick Add — compact horizontal strip
-  quickSection: { paddingBottom: SPACING.xs },
-  quickTitle:   { ...TYPOGRAPHY.caption, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
-  quickRow:     { flexDirection: "row", gap: SPACING.xs, paddingRight: SPACING.xs },
-  quickChip:    { height: 52, minWidth: 90, backgroundColor: COLORS.surface, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.overlay, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, ...SHADOW.card },
-  quickChipLow: { borderColor: COLORS.warning, borderWidth: 1.5 },
-  quickChipOut: { opacity: 0.45, backgroundColor: "#F0F0F0" },
-  quickChipName:    { ...TYPOGRAPHY.body, fontSize: 13, fontWeight: "600", color: COLORS.textPrimary },
-  quickChipNameOut: { color: COLORS.textSecondary },
-  quickChipStock:   { ...TYPOGRAPHY.caption, fontSize: 11, color: COLORS.primary, fontWeight: "600", marginTop: 2 },
-
-  // Quick stepper
-  quickStepper:   { flexDirection: "row", alignItems: "center", marginTop: 4, borderRadius: RADIUS.sm, overflow: "hidden", borderWidth: 1, borderColor: COLORS.overlay },
-  quickStepBtn:   { width: 28, height: 26, alignItems: "center", justifyContent: "center" },
-  quickStepMinus: { backgroundColor: COLORS.surface },
-  quickStepPlus:  { backgroundColor: COLORS.primary },
-  quickQtyText:   { flex: 1, textAlign: "center", fontSize: 13, fontWeight: "700", color: COLORS.textPrimary, backgroundColor: COLORS.background },
+  // Quick Add Grid
+  quickSection: { paddingBottom: SPACING.md },
+  quickHeader: { marginBottom: 12 },
+  quickTitle: { ...TYPOGRAPHY.h3, fontSize: 18, color: COLORS.textPrimary },
+  quickSubtitle: { ...TYPOGRAPHY.caption, color: COLORS.textSecondary, marginTop: 2 },
+  gridContainer: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  gridItem: {
+    width: "48.5%",
+    height: 94,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.overlay,
+    padding: 12,
+    justifyContent: "space-between",
+    ...SHADOW.card,
+  },
+  gridItemLow: { borderColor: COLORS.warning, borderWidth: 2, backgroundColor: COLORS.warning + '08' },
+  gridItemOut: { opacity: 0.4, backgroundColor: "#F0F0F0", borderColor: "transparent" },
+  gridItemName: { ...TYPOGRAPHY.body, fontSize: 14, fontWeight: "700", color: COLORS.textPrimary, lineHeight: 18 },
+  gridItemNameOut: { color: COLORS.textSecondary },
+  gridItemFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
+  gridItemPrice: { fontSize: 15, fontWeight: "800", color: COLORS.primary, fontFamily: "Inter_700Bold" },
+  gridItemStock: { ...TYPOGRAPHY.caption, fontSize: 11, fontWeight: "700" },
+  emptyQuickAdd: { padding: 20, alignItems: "center", backgroundColor: COLORS.surface, borderRadius: RADIUS.md, borderStyle: "dashed", borderWidth: 1, borderColor: COLORS.overlay },
+  emptyQuickAddText: { ...TYPOGRAPHY.caption, textAlign: "center" },
 
   // Checkout
-  checkoutBtn: { height: 54 },
+  checkoutBtn: { height: 64, borderRadius: RADIUS.lg },
 
   // Modals shared
   modalBackdrop:  { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "flex-end" },

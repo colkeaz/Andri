@@ -66,7 +66,17 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
 
       const result = await processImageForText(photo.uri);
       if (result.items && result.items.length > 0) {
-        setDetectedItems(result.items);
+        // Enrich items with existing DB prices for Profit Guard
+        const allProducts = await dbService.getProducts();
+        const enriched = result.items.map(item => {
+          const existing = allProducts.find(p => p.name.toUpperCase() === item.name.toUpperCase());
+          return {
+            ...item,
+            existingId: existing?.id,
+            suggestedPrice: Number((item.price * 1.15).toFixed(2))
+          };
+        });
+        setDetectedItems(enriched);
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
         Alert.alert("No items found", "Try taking a clearer picture of the receipt.");
@@ -137,7 +147,7 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
           />
         </View>
         <View style={styles.detailBox}>
-          <Text style={styles.detailLabel}>UNIT PRICE</Text>
+          <Text style={styles.detailLabel}>UNIT COST</Text>
           <View style={styles.priceRow}>
             <Text style={styles.currencyPrefix}>₱</Text>
             <TextInput
@@ -148,8 +158,14 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
             />
           </View>
         </View>
+        <View style={[styles.detailBox, { backgroundColor: COLORS.primary + '10' }]}>
+          <Text style={[styles.detailLabel, { color: COLORS.primary }]}>PROFIT GUARD™</Text>
+          <Text style={[styles.totalValue, { color: COLORS.primary }]}>
+            ₱{(item.price * 1.15).toFixed(2)}
+          </Text>
+        </View>
         <View style={[styles.detailBox, { borderRightWidth: 0 }]}>
-          <Text style={styles.detailLabel}>TOTAL</Text>
+          <Text style={styles.detailLabel}>LINE TOTAL</Text>
           <Text style={styles.totalValue}>₱{(item.quantity * item.price).toFixed(2)}</Text>
         </View>
       </View>

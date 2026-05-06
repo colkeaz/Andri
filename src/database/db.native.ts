@@ -83,6 +83,34 @@ export const dbService = {
     }
   },
 
+  getDeadStock: async () => {
+    try {
+      const db = await getDB();
+      // Returns items that have stock but no sales in 30 days (or never sold and added > 30 days ago)
+      return await db.getAllAsync<{ id: string, name: string, total_qty: number, price: number, last_sale: string | null }>(
+        `SELECT 
+            p.id, 
+            p.name, 
+            MAX(s.timestamp) AS last_sale,
+            SUM(i.quantity) AS total_qty,
+            MAX(i.selling_price) AS price
+        FROM products p
+        JOIN inventory i ON i.product_id = p.id
+        LEFT JOIN sales s ON s.product_id = p.id
+        GROUP BY p.id
+        HAVING total_qty > 0 
+           AND (
+             (last_sale IS NULL AND MIN(i.date_added) < date('now', '-30 days'))
+             OR 
+             (last_sale IS NOT NULL AND last_sale < date('now', '-30 days'))
+           )`
+      );
+    } catch (error) {
+      console.error("getDeadStock failed", error);
+      return [];
+    }
+  },
+
   getInventorySummary: async () => {
     try {
       const db = await getDB();

@@ -171,6 +171,42 @@ export const dbService = {
     }
   },
 
+  getDeadStock: async (): Promise<{ id: string, name: string, total_qty: number, price: number, last_sale: string | null }[]> => {
+    try {
+      const { products, inventory, sales } = readStore();
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const deadStock = products.map(p => {
+        const productInventory = inventory.filter(i => i.product_id === p.id);
+        const totalQty = productInventory.reduce((sum, i) => sum + i.quantity, 0);
+        if (totalQty <= 0) return null;
+
+        const productSales = sales.filter(s => s.product_id === p.id);
+        const lastSale = productSales.length > 0 
+          ? productSales.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0].timestamp 
+          : null;
+
+        const earliestAdded = productInventory.length > 0
+          ? productInventory.sort((a, b) => new Date(a.date_added).getTime() - new Date(b.date_added).getTime())[0].date_added
+          : null;
+
+        const price = productInventory.length > 0 ? productInventory[productInventory.length - 1].selling_price : 0;
+
+        if (lastSale) {
+          if (new Date(lastSale) < thirtyDaysAgo) return { id: p.id, name: p.name, total_qty: totalQty, price, last_sale: lastSale };
+        } else if (earliestAdded && new Date(earliestAdded) < thirtyDaysAgo) {
+          return { id: p.id, name: p.name, total_qty: totalQty, price, last_sale: null };
+        }
+        return null;
+      }).filter((item): item is { id: string, name: string, total_qty: number, price: number, last_sale: string | null } => item !== null);
+
+      return deadStock;
+    } catch {
+      return [];
+    }
+  },
+
   getInventorySummary: async (): Promise<
     {
       id: string;

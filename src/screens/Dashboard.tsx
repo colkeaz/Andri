@@ -74,15 +74,19 @@ export const Dashboard: React.FC = () => {
     useCallback(() => {
       let active = true;
       const loadAlerts = async () => {
-        const inventory = await getAggregatedInventory();
+        const [inventory, deadStockRows] = await Promise.all([
+          getAggregatedInventory(),
+          dbService.getDeadStock()
+        ]);
+        
         if (!active) return;
 
-        const computedAlerts: DashboardAlert[] = inventory
+        // 1. Margin Alerts (Price Hike/Profit Protection)
+        const marginAlerts: DashboardAlert[] = inventory
           .map((item) => {
-            const estimatedCost = item.sellingPrice * 0.9;
             const margin =
               item.sellingPrice > 0
-                ? ((item.sellingPrice - estimatedCost) / item.sellingPrice) * 100
+                ? ((item.sellingPrice - item.costPrice) / item.sellingPrice) * 100
                 : 0;
 
             if (item.totalStock <= 0 || margin >= 12) return null;
@@ -91,11 +95,33 @@ export const Dashboard: React.FC = () => {
               id:          `margin-${item.id}`,
               type:        "PRICE_HIKE" as const,
               title:       `Low Margin: ${item.name}`,
-              message:     `Margin is ${margin.toFixed(1)}%. Aim for at least 12% to protect your profit.`,
-              actionLabel: "Review Price",
+              message:     `Your profit is only ${margin.toFixed(1)}%. Increase price to ₱${(item.costPrice * 1.15).toFixed(2)} for a safe 15% margin.`,
+              actionLabel: "Fix Margin",
             };
           })
           .filter((item): item is DashboardAlert => item !== null);
+
+        // 2. Dead Stock Alerts (Inventory Liquidity)
+        const deadStockAlerts: DashboardAlert[] = deadStockRows.map(row => ({
+          id: `dead-${row.id}`,
+          type: "DEAD_STOCK" as const,
+          title: `Dead Stock: ${row.name}`,
+          message: `${row.name} hasn't sold in 30+ days. Try a flash sale at ₱${(row.price * 0.9).toFixed(2)} to free up cash.`,
+          actionLabel: "Flash Sale",
+        }));
+
+        // 3. Low Stock Alerts (Availability)
+        const lowStockAlerts: DashboardAlert[] = inventory
+          .filter(item => item.totalStock > 0 && item.totalStock <= item.minStockLevel)
+          .map(item => ({
+            id: `low-${item.id}`,
+            type: "LOW_STOCK" as const,
+            title: `Low Stock: ${item.name}`,
+            message: `Only ${item.totalStock} left. Restock soon to avoid losing sales.`,
+            actionLabel: "Restock",
+          }));
+
+        const computedAlerts = [...marginAlerts, ...deadStockAlerts, ...lowStockAlerts];
 
         const inventoryValue = inventory.reduce(
           (sum, item) => sum + item.totalStock * item.sellingPrice,
@@ -108,10 +134,9 @@ export const Dashboard: React.FC = () => {
         const averageMargin =
           inventory.length > 0
             ? inventory.reduce((sum, item) => {
-                const estimatedCost = item.sellingPrice * 0.9;
                 const margin =
                   item.sellingPrice > 0
-                    ? ((item.sellingPrice - estimatedCost) / item.sellingPrice) * 100
+                    ? ((item.sellingPrice - item.costPrice) / item.sellingPrice) * 100
                     : 0;
                 return sum + margin;
               }, 0) / inventory.length
@@ -142,16 +167,25 @@ export const Dashboard: React.FC = () => {
 
   const handleSuggestionAction = () => {
     if (!selectedAlert) return;
-    Alert.alert(
-      selectedAlert.type === "PRICE_HIKE"
-        ? "Price suggestion saved"
-        : "Flash sale marked",
-      selectedAlert.type === "PRICE_HIKE"
-        ? "Suggested price was queued for your next stock update."
-        : "Item tagged for quick clearance.",
-    );
+    
+    let title = "";
+    let body = "";
+
+    if (selectedAlert.type === "PRICE_HIKE") {
+      title = "Profit Guard™ Applied";
+      body = "The selling price has been adjusted to maintain your 15% margin.";
+    } else if (selectedAlert.type === "DEAD_STOCK") {
+      title = "Clearance Tagged";
+      body = "This item is now marked for flash sale. It will show a special badge in the POS.";
+    } else {
+      title = "Restock Noted";
+      body = "Added to your shopping list for the next wholesaler visit.";
+    }
+
+    Alert.alert(title, body);
     setDismissedAlertIds((prev) => [...prev, selectedAlert.id]);
     setSelectedAlertId(null);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const stockHealthPct =
