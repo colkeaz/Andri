@@ -48,12 +48,12 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
     return (
       <View style={styles.permissionWrap}>
         <ScanLine color={COLORS.textSecondary} size={64} />
-        <Text style={styles.permissionTitle}>Camera Access Needed</Text>
+        <Text style={styles.permissionTitle}>Camera Access Required</Text>
         <Text style={styles.permissionBody}>
-          Allow camera access to scan product labels and detect prices automatically.
+          Please grant camera permission to scan product labels.
         </Text>
         <Pressable style={styles.permissionBtn} onPress={requestPermission}>
-          <Text style={styles.permissionBtnText}>Grant Access</Text>
+          <Text style={styles.permissionBtnText}>Grant Permission</Text>
         </Pressable>
       </View>
     );
@@ -87,7 +87,7 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "OCR failed.";
+      const message = error instanceof Error ? error.message : "Failed to process photo.";
       Alert.alert("Scan Failed", message);
     } finally {
       setIsScanning(false);
@@ -137,8 +137,8 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
     const cost = Number(selectedCost);
     if (!trimmedName || Number.isNaN(cost) || cost <= 0) {
       Alert.alert(
-        "Missing fields",
-        "Select a product name and valid cost first.",
+        "Missing details",
+        "Please select a name and cost price first.",
       );
       return;
     }
@@ -159,7 +159,7 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
       setDetectedChips([]);
       setFullText("");
     } catch {
-      Alert.alert("Save Failed", "Unable to add item to inventory.");
+      Alert.alert("Save Failed", "There was a problem saving.");
     } finally {
       setIsSaving(false);
     }
@@ -207,17 +207,16 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
       <View style={styles.content}>
         <ScrollView showsVerticalScrollIndicator={false}>
           <BigButton
-            title={isScanning ? "SCANNING..." : "SNAP PHOTO"}
+            title={isScanning ? "SCANNING..." : "TAKE PHOTO"}
             onPress={handleSnap}
             style={styles.snapButton}
             icon={<CameraIcon color={COLORS.white} size={32} />}
           />
 
           <View style={styles.injectCard}>
-            <Text style={styles.injectTitle}>Tap-to-Inject</Text>
+            <Text style={styles.injectTitle}>Tap to Auto-fill</Text>
             <Text style={styles.injectHint}>
-              Tap a highlighted chip above to fill Product Name or Cost
-              automatically.
+              Tap the highlighted text above to fill the Name or Cost fields.
             </Text>
 
             <View style={styles.fieldRow}>
@@ -226,7 +225,7 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
                 style={styles.fieldInput}
                 value={selectedName}
                 onChangeText={setSelectedName}
-                placeholder="Detected product name"
+                placeholder="Product name"
               />
             </View>
 
@@ -237,12 +236,12 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
                 value={selectedCost}
                 onChangeText={setSelectedCost}
                 keyboardType="decimal-pad"
-                placeholder="Detected cost"
+                placeholder="Cost price"
               />
             </View>
 
             <BigButton
-              title={isSaving ? "SAVING..." : "SAVE DETECTED ITEM"}
+              title={isSaving ? "SAVING..." : "SAVE PRODUCT"}
               color={COLORS.success}
               onPress={saveInjectedItem}
               style={styles.saveButton}
@@ -251,14 +250,14 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
 
           {fullText ? (
             <View style={styles.textDumpCard}>
-              <Text style={styles.textDumpTitle}>Recognized Text</Text>
+              <Text style={styles.textDumpTitle}>Detected Text</Text>
               <Text style={styles.textDumpValue}>{fullText}</Text>
             </View>
           ) : null}
 
           {onSwitchToManual ? (
             <BigButton
-              title="ADD MANUALLY INSTEAD"
+              title="SWITCH TO MANUAL"
               color={COLORS.secondary}
               onPress={onSwitchToManual}
               style={styles.manualButton}

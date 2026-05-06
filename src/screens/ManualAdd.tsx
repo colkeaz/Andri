@@ -10,10 +10,10 @@ import {
   Platform,
   Pressable,
 } from 'react-native';
-import { COLORS, TYPOGRAPHY, SPACING } from '../theme/tokens';
+import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '../theme/tokens';
 import { BigButton } from '../components/BigButton';
 import { dbService } from '../database/db';
-import { Save, Package, ArrowLeft, Scan } from 'lucide-react-native';
+import { Save, Package, ArrowLeft, Scan, ChevronDown } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { Modal, TouchableOpacity } from 'react-native';
@@ -32,6 +32,7 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
   const [barcode, setBarcode] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(false);
 
@@ -60,32 +61,32 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
     const sell = Number(sellingPrice);
 
     if (trimmedName.length < 2 || trimmedName.length > 50) {
-      Alert.alert('Invalid Item Name', 'Item name must be 2 to 50 characters.');
+      Alert.alert('Invalid Name', 'Product name must be between 2 and 50 characters.');
       return null;
     }
 
-    if (!/^[A-Za-z0-9\s\-&,().]+$/.test(trimmedName)) {
-      Alert.alert('Invalid Item Name', 'Item name can only use letters, numbers, and basic symbols.');
+    if (!/^[A-Za-z0-9\s\-\&,().]+$/.test(trimmedName)) {
+      Alert.alert('Invalid Name', 'Only letters, numbers, and basic symbols are allowed.');
       return null;
     }
 
     if (!trimmedCategory) {
-      Alert.alert('Invalid Category', 'Please select a category.');
+      Alert.alert('No Category', 'Please select a category first.');
       return null;
     }
 
     if (!quantity || !Number.isInteger(qty) || qty <= 0 || qty > 99999) {
-      Alert.alert('Invalid Quantity', 'Quantity must be a whole number between 1 and 99,999.');
+      Alert.alert('Invalid Quantity', 'Quantity must be a whole number up to 99,999.');
       return null;
     }
 
     if (!costPrice || Number.isNaN(cost) || cost <= 0 || cost >= 1000000) {
-      Alert.alert('Invalid Cost Price', 'Supplier price must be a valid amount greater than 0.');
+      Alert.alert('Invalid Cost', 'Cost price must be greater than 0.');
       return null;
     }
 
     if (!sellingPrice || Number.isNaN(sell) || sell <= 0 || sell >= 1000000) {
-      Alert.alert('Invalid Selling Price', 'Selling price must be a valid amount greater than 0.');
+      Alert.alert('Invalid Price', 'Selling price must be greater than 0.');
       return null;
     }
 
@@ -138,7 +139,7 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
         validated.sell
       );
 
-      Alert.alert('Success!', `${validated.trimmedName} has been added to your shop.`);
+      Alert.alert('Saved! ✅', `${validated.trimmedName} added to your shop.`);
       setName('');
       setCategory('');
       setQuantity('');
@@ -148,7 +149,7 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
       onComplete();
     } catch (error) {
       console.error(error);
-      Alert.alert('Error', 'Something went wrong while saving.');
+      Alert.alert('Error', 'There was a problem saving. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -162,22 +163,23 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {onBack ? (
           <Pressable style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]} onPress={onBack}>
-            <ArrowLeft color={COLORS.primary} size={20} />
+            <ArrowLeft color={COLORS.primary} size={22} />
             <Text style={styles.backButtonText}>Back</Text>
           </Pressable>
         ) : null}
 
         <View style={styles.header}>
-          <Package color={COLORS.primary} size={40} />
-          <Text style={TYPOGRAPHY.h1}>Add Item Manually</Text>
-          <Text style={TYPOGRAPHY.body}>Enter the details of your stock</Text>
+          <Package color={COLORS.secondary} size={44} />
+          <Text style={TYPOGRAPHY.h1}>Add Product</Text>
+          <Text style={TYPOGRAPHY.body}>Enter the details of your new item</Text>
         </View>
 
         <View style={styles.form}>
-          <Text style={styles.label}>Item Name</Text>
+          <Text style={styles.label}>Product Name</Text>
           <TextInput 
             style={styles.input} 
             placeholder="e.g. Lucky Me Noodles"
+            placeholderTextColor={COLORS.textSecondary}
             value={name}
             onChangeText={(value) => setName(value.slice(0, 50))}
             maxLength={50}
@@ -192,15 +194,15 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
               <Text style={[styles.dropdownText, !category && { color: COLORS.textSecondary }]}>
                 {category || "Select Category"}
               </Text>
-              <ChevronDown color={COLORS.textSecondary} size={20} />
+              <ChevronDown color={COLORS.textSecondary} size={22} />
             </Pressable>
 
             {showDropdown && (
               <View style={styles.dropdownList}>
-                {["Snacks", "Beverages", "Household", "Other"].map((item) => (
+                {["Food", "Drinks", "Household", "Others"].map((item) => (
                   <Pressable 
                     key={item} 
-                    style={styles.dropdownItem}
+                    style={({ pressed }) => [styles.dropdownItem, pressed && { backgroundColor: COLORS.accentSoft }]}
                     onPress={() => {
                       setCategory(item);
                       setShowDropdown(false);
@@ -214,11 +216,12 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
           </View>
 
           <View style={styles.row}>
-            <View style={{ flex: 1, marginRight: showDropdown ? 0 : 0 }}>
+            <View style={{ flex: 1 }}>
               <Text style={styles.label}>Quantity</Text>
               <TextInput 
                 style={styles.input} 
                 placeholder="0"
+                placeholderTextColor={COLORS.textSecondary}
                 keyboardType="numeric"
                 value={quantity}
                 onChangeText={(value) => setQuantity(sanitizeInteger(value, 5))}
@@ -227,20 +230,22 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
             </View>
           </View>
 
-          <Text style={styles.label}>Supplier Price (Cost)</Text>
+          <Text style={styles.label}>Cost Price (Supplier)</Text>
           <TextInput 
             style={styles.input} 
             placeholder="₱ 0.00"
+            placeholderTextColor={COLORS.textSecondary}
             keyboardType="numeric"
             value={costPrice}
             onChangeText={(value) => setCostPrice(sanitizeDecimal(value, 7))}
             maxLength={10}
           />
 
-          <Text style={styles.label}>Your Selling Price</Text>
+          <Text style={styles.label}>Selling Price (Markup)</Text>
           <TextInput 
             style={styles.input} 
             placeholder="₱ 0.00"
+            placeholderTextColor={COLORS.textSecondary}
             keyboardType="numeric"
             value={sellingPrice}
             onChangeText={(value) => setSellingPrice(sanitizeDecimal(value, 7))}
@@ -248,18 +253,20 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
           />
 
           <Text style={styles.label}>Barcode (Optional)</Text>
-          <View style={styles.barcodeContainer}>
+          <View style={styles.integratedInputContainer}>
             <TextInput 
-              style={[styles.input, { flex: 1, marginBottom: 0 }]} 
+              style={styles.integratedInput} 
               placeholder="Scan or type barcode"
+              placeholderTextColor={COLORS.textSecondary}
               value={barcode}
               onChangeText={setBarcode}
             />
             <TouchableOpacity 
-              style={styles.scanButton} 
+              style={styles.integratedScannerBtn} 
               onPress={startScanning}
+              activeOpacity={0.7}
             >
-              <Scan color={COLORS.white} size={24} />
+              <Scan color={COLORS.primary} size={24} />
             </TouchableOpacity>
           </View>
 
@@ -312,69 +319,123 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: 'rgba(0,51,102,0.08)',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.accentSoft,
     marginBottom: SPACING.sm,
   },
   backButtonPressed: {
     opacity: 0.7,
   },
   backButtonText: {
-    ...TYPOGRAPHY.body,
+    ...TYPOGRAPHY.bodyBold,
     color: COLORS.primary,
-    fontWeight: '700',
+    fontSize: 17,
   },
   header: {
     alignItems: 'center',
     marginBottom: SPACING.xl,
     marginTop: 20,
+    gap: 6,
   },
   form: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     padding: SPACING.lg,
-    borderRadius: 24,
-    shadowColor: '#000',
+    borderRadius: RADIUS.xl,
+    borderWidth: 1,
+    borderColor: COLORS.overlay,
+    shadowColor: '#8B6914',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     elevation: 5,
   },
   label: {
     ...TYPOGRAPHY.bodyLarge,
-    fontSize: 16,
-    marginBottom: 8,
+    fontSize: 17,
+    marginBottom: 10,
     color: COLORS.textSecondary,
   },
   input: {
     backgroundColor: COLORS.background,
-    height: 60,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 18,
-    marginBottom: 20,
-    borderWidth: 1,
+    height: 64,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: 18,
+    fontSize: 20,
+    marginBottom: 22,
+    borderWidth: 1.5,
     borderColor: COLORS.overlay,
+    color: COLORS.textPrimary,
+  },
+  dropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dropdownText: {
+    fontSize: 20,
+    color: COLORS.textPrimary,
+  },
+  dropdownList: {
+    position: 'absolute',
+    top: 68,
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: COLORS.overlay,
+    shadowColor: '#8B6914',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 100,
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.overlay,
+  },
+  dropdownItemText: {
+    ...TYPOGRAPHY.bodyLarge,
+    fontSize: 18,
+    color: COLORS.textPrimary,
   },
   row: {
     flexDirection: 'row',
   },
   saveButton: {
-    marginTop: 10,
+    marginTop: 12,
+    height: 72,
   },
-  barcodeContainer: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20,
-    alignItems: 'center',
+  integratedInputContainer: {
+    position: 'relative',
+    marginBottom: 22,
+    justifyContent: 'center',
   },
-  scanButton: {
-    backgroundColor: COLORS.primary,
-    height: 60,
-    width: 60,
-    borderRadius: 12,
+  integratedInput: {
+    backgroundColor: COLORS.background,
+    height: 64,
+    borderRadius: RADIUS.md,
+    paddingLeft: 18,
+    paddingRight: 64,
+    fontSize: 20,
+    borderWidth: 1.5,
+    borderColor: COLORS.overlay,
+    color: COLORS.textPrimary,
+  },
+  integratedScannerBtn: {
+    position: 'absolute',
+    right: 8,
+    width: 48,
+    height: 48,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -391,15 +452,16 @@ const styles = StyleSheet.create({
   scannerFrame: {
     width: 250,
     height: 250,
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: COLORS.white,
-    borderRadius: 24,
+    borderRadius: RADIUS.xl,
     backgroundColor: 'rgba(255,255,255,0.1)',
   },
   scannerHint: {
     color: COLORS.white,
-    marginTop: 20,
+    marginTop: 24,
     ...TYPOGRAPHY.bodyBold,
+    fontSize: 18,
   },
   cancelScanBtn: {
     position: 'absolute',

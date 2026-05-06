@@ -1,100 +1,122 @@
 // ─────────────────────────────────────────────
-//  Stocker – "Productive Minimalism" Theme
-//  Apple / Lofree white palette
+//  Stocker – "Tindahan" Filipino Elder-Friendly Theme
+//  Warm cream & gold palette inspired by Philippine heritage
 // ─────────────────────────────────────────────
 
 export const COLORS = {
-  // Core accent – iOS blue
-  primary: "#007AFF",
+  // Core accent – Philippine flag deep blue
+  primary:   "#1B4B8A",
+  // Secondary accent – Philippine sun gold
+  secondary: "#D4A843",
+
   // Status
-  success: "#34C759",
-  danger:  "#FF3B30",
-  warning: "#FF9500",
+  success: "#2E7D32",
+  danger:  "#C62828",
+  error:   "#C62828",        // Alias for danger (used across codebase)
+  warning: "#F57C00",
 
-  // Backgrounds
-  background: "#FFFFFF",        // Pure white canvas
-  surface:    "#F5F5F7",        // Apple soft-gray card surface
-  surfaceAlt: "#FAFAFA",        // Slightly warmer card variant
-  overlay:    "#E5E5E7",        // Ultra-thin border / divider
+  // Backgrounds – warm cream tones
+  background: "#FFF8F0",     // Warm cream canvas
+  surface:    "#FFF2E6",     // Slightly deeper cream for cards
+  surfaceAlt: "#FFEDD5",     // Warm accent card variant
+  overlay:    "#E8D5BE",     // Warm tan border / divider
 
-  // Text
-  textPrimary:   "#1D1D1F",     // Near-black – Apple headline
-  textSecondary: "#86868B",     // Apple system gray
+  // Text – warm brown tones for readability
+  textPrimary:   "#2C1810",  // Rich dark brown – easier on older eyes
+  textSecondary: "#7A6557",  // Medium brown – warm secondary text
 
   // Convenience
   white: "#FFFFFF",
-  black: "#1D1D1F",
+  black: "#2C1810",
+
+  // Filipino accent colors
+  accent:    "#D4A843",      // Sun gold
+  accentSoft:"#FFF3D6",      // Soft gold for backgrounds
+  accentVibrant: "#E53935",  // Fiesta Red
+  accentJeepney: "#FFCA28",  // Jeepney Yellow
 };
 
 export const SPACING = {
-  xs:  8,
-  sm:  16,
-  md:  24,
-  lg:  32,
-  xl:  48,
+  xs:  10,
+  sm:  18,
+  md:  26,
+  lg:  34,
+  xl:  52,
 };
 
 export const RADIUS = {
-  sm:  12,
-  md:  16,
-  lg:  20,
-  xl:  24,
+  sm:  14,
+  md:  18,
+  lg:  22,
+  xl:  28,
 };
 
 export const SHADOW = {
-  // Barely-there shadow for white surfaces
+  // Warm subtle shadow for cream surfaces
   card: {
-    shadowColor:   "#000",
-    shadowOffset:  { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius:  8,
-    elevation:     2,
+    shadowColor:   "#8B6914",
+    shadowOffset:  { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius:  10,
+    elevation:     3,
   },
   // Slightly lifted for modals / bottom sheets
   modal: {
-    shadowColor:   "#000",
-    shadowOffset:  { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius:  16,
-    elevation:     8,
+    shadowColor:   "#8B6914",
+    shadowOffset:  { width: 0, height: -3 },
+    shadowOpacity: 0.12,
+    shadowRadius:  20,
+    elevation:     10,
   },
 };
 
 export const TYPOGRAPHY = {
   h1: {
-    fontSize:   34,
-    fontWeight: "800" as const,
-    fontFamily: "Inter_700Bold",
-    color:      COLORS.textPrimary,
+    fontSize:      40,
+    fontWeight:    "800" as const,
+    fontFamily:    "Inter_700Bold",
+    color:         COLORS.textPrimary,
     letterSpacing: -0.5,
   },
   h2: {
-    fontSize:   22,
-    fontWeight: "700" as const,
-    fontFamily: "Inter_600SemiBold",
-    color:      COLORS.textPrimary,
+    fontSize:      28,
+    fontWeight:    "700" as const,
+    fontFamily:    "Inter_600SemiBold",
+    color:         COLORS.textPrimary,
+  },
+  h3: {
+    fontSize:      24,
+    fontWeight:    "700" as const,
+    fontFamily:    "Inter_600SemiBold",
+    color:         COLORS.textPrimary,
   },
   bodyLarge: {
-    fontSize:   18,
-    fontWeight: "600" as const,
-    fontFamily: "Inter_500Medium",
-    color:      COLORS.textPrimary,
+    fontSize:      22,
+    fontWeight:    "600" as const,
+    fontFamily:    "Inter_500Medium",
+    color:         COLORS.textPrimary,
   },
   body: {
-    fontSize:   15,
-    fontFamily: "Inter_400Regular",
-    color:      COLORS.textSecondary,
+    fontSize:      19,
+    fontFamily:    "Inter_400Regular",
+    color:         COLORS.textSecondary,
+  },
+  bodyBold: {
+    fontSize:      19,
+    fontWeight:    "700" as const,
+    fontFamily:    "Inter_600SemiBold",
+    color:         COLORS.textPrimary,
   },
   caption: {
-    fontSize:   13,
-    fontFamily: "Inter_400Regular",
-    color:      COLORS.textSecondary,
+    fontSize:      16,
+    fontFamily:    "Inter_400Regular",
+    color:         COLORS.textSecondary,
   },
   buttonLabel: {
-    fontSize:   18,
-    fontWeight: "700" as const,
-    fontFamily: "Inter_600SemiBold",
-    color:      COLORS.white,
+    fontSize:      22,
+    fontWeight:    "700" as const,
+    fontFamily:    "Inter_600SemiBold",
+    color:         COLORS.white,
     letterSpacing: 0.3,
   },
 };

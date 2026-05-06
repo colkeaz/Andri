@@ -52,21 +52,21 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title:        "My Shop",
+          title:        "Home",
           tabBarIcon:   ({ color }) => <Home color={color} size={24} strokeWidth={1.75} />,
         }}
       />
       <Tabs.Screen
         name="inventory"
         options={{
-          title:        "Stock",
+          title:        "Inventory",
           tabBarIcon:   ({ color }) => <Package color={color} size={24} strokeWidth={1.75} />,
         }}
       />
       <Tabs.Screen
         name="intake"
         options={{
-          title:        "Add",
+          title:        "Add Stock",
           tabBarIcon:   ({ color }) => <PackagePlus color={color} size={24} strokeWidth={1.75} />,
         }}
       />

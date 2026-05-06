@@ -44,12 +44,12 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
     return (
       <View style={styles.permissionWrap}>
         <Receipt color={COLORS.textSecondary} size={64} />
-        <Text style={styles.permissionTitle}>Camera Access Needed</Text>
+        <Text style={styles.permissionTitle}>Camera Access Required</Text>
         <Text style={styles.permissionBody}>
-          Allow camera access to scan receipts and automate your stock system.
+          Please grant camera permission to scan receipts.
         </Text>
         <Pressable style={styles.permissionBtn} onPress={requestPermission}>
-          <Text style={styles.permissionBtnText}>Grant Access</Text>
+          <Text style={styles.permissionBtnText}>Grant Permission</Text>
         </Pressable>
       </View>
     );
@@ -79,10 +79,10 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
         setDetectedItems(enriched);
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
-        Alert.alert("No items found", "Try taking a clearer picture of the receipt.");
+        Alert.alert("No items found", "Try taking a clearer photo of the receipt.");
       }
     } catch (error) {
-      Alert.alert("Scan Failed", "Unable to process receipt.");
+      Alert.alert("Scan Failed", "Receipt could not be processed.");
     } finally {
       setIsScanning(false);
     }
@@ -113,12 +113,12 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
       await dbService.processReceiptTransaction(detectedItems, mode);
       Alert.alert(
         "Success",
-        `Processed ${detectedItems.length} items as ${mode.toLowerCase()}.`,
+        `${detectedItems.length} items recorded as ${mode === 'PURCHASE' ? 'purchases' : 'sales'}.`,
         [{ text: "OK", onPress: onBack }]
       );
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      Alert.alert("Save Failed", "Database error occurred.");
+      Alert.alert("Save Failed", "There was a problem with the database.");
     } finally {
       setIsSaving(false);
     }
@@ -147,7 +147,7 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
           />
         </View>
         <View style={styles.detailBox}>
-          <Text style={styles.detailLabel}>UNIT COST</Text>
+          <Text style={styles.detailLabel}>COST</Text>
           <View style={styles.priceRow}>
             <Text style={styles.currencyPrefix}>₱</Text>
             <TextInput
@@ -165,7 +165,7 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
           </Text>
         </View>
         <View style={[styles.detailBox, { borderRightWidth: 0 }]}>
-          <Text style={styles.detailLabel}>LINE TOTAL</Text>
+          <Text style={styles.detailLabel}>TOTAL</Text>
           <Text style={styles.totalValue}>₱{(item.quantity * item.price).toFixed(2)}</Text>
         </View>
       </View>
@@ -179,8 +179,8 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
         <Pressable onPress={onBack} style={styles.backBtn}>
           <ChevronLeft color={COLORS.textPrimary} size={28} />
         </Pressable>
-        <Text style={styles.headerTitle}>Receipt Processor</Text>
-        <div style={{ width: 28 }} />
+        <Text style={styles.headerTitle}>Scan Receipt</Text>
+        <View style={{ width: 28 }} />
       </View>
 
       {detectedItems.length === 0 ? (
@@ -229,7 +229,7 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
           <View style={styles.footer}>
             <Pressable style={styles.resetBtn} onPress={() => setDetectedItems([])}>
               <RotateCcw color={COLORS.textSecondary} size={20} />
-              <Text style={styles.resetBtnText}>Rescan</Text>
+              <Text style={styles.resetBtnText}>Retry</Text>
             </Pressable>
             <BigButton
               title={isSaving ? "SAVING..." : `PROCESS ${detectedItems.length} ITEMS`}
