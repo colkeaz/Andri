@@ -333,6 +333,7 @@ export const dbService = {
     try {
       const db = await getDB();
       await db.execAsync("BEGIN TRANSACTION");
+      await db.runAsync("DELETE FROM sales WHERE product_id = ?", [productId]);
       await db.runAsync("DELETE FROM inventory WHERE product_id = ?", [productId]);
       await db.runAsync("DELETE FROM products WHERE id = ?", [productId]);
       await db.execAsync("COMMIT");

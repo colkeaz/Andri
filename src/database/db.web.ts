@@ -366,12 +366,13 @@ export const dbService = {
     }
   },
 
-  /** Delete a product and all its inventory batches */
+  /** Delete a product and all its inventory batches and sales */
   deleteProduct: async (productId: string): Promise<void> => {
     try {
       const store = readStore();
       store.products  = store.products.filter((p)   => p.id !== productId);
       store.inventory = store.inventory.filter((row) => row.product_id !== productId);
+      store.sales     = store.sales.filter((s) => s.product_id !== productId);
       writeStore(store);
     } catch (error) {
       console.error("deleteProduct (web) failed", error);
@@ -397,6 +398,72 @@ export const dbService = {
     } catch {
       return [];
     }
+  },
+
+  /** Process receipt items — matches native db parity */
+  processReceiptTransaction: async (
+    items: { name: string; quantity: number; price: number }[],
+    type: "PURCHASE" | "SALE",
+  ): Promise<void> => {
+    const store = readStore();
+
+    for (const item of items) {
+      let product = store.products.find(
+        (p) => p.name.toUpperCase() === item.name.toUpperCase(),
+      );
+
+      let productId = product?.id;
+      if (!productId) {
+        productId = `P-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        store.products.push({
+          id: productId,
+          name: item.name,
+          barcode: null,
+          category: null,
+          min_stock_level: 5,
+        });
+      }
+
+      if (type === "PURCHASE") {
+        const batchId = `B-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const sellingPrice = Number((item.price * 1.15).toFixed(2));
+        store.inventory.push({
+          id: batchId,
+          product_id: productId,
+          quantity: item.quantity,
+          cost_price: item.price,
+          selling_price: sellingPrice,
+          supplier_name: null,
+          date_added: new Date().toISOString(),
+        });
+      } else {
+        // SALE — FIFO deduction
+        const batches = store.inventory
+          .filter((row) => row.product_id === productId && row.quantity > 0)
+          .sort(
+            (a, b) =>
+              new Date(a.date_added).getTime() - new Date(b.date_added).getTime(),
+          );
+
+        let remaining = item.quantity;
+        for (const batch of batches) {
+          if (remaining <= 0) break;
+          const deduct = Math.min(batch.quantity, remaining);
+          batch.quantity -= deduct;
+          remaining -= deduct;
+        }
+
+        store.sales.push({
+          id: `S-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          product_id: productId,
+          quantity: item.quantity,
+          total_price: item.quantity * item.price,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
+    writeStore(store);
   },
 
   resetDemoData: async (): Promise<void> => {

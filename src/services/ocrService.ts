@@ -2,6 +2,16 @@ import TextRecognition from "@react-native-ml-kit/text-recognition";
 
 export type OCRFieldType = "name" | "price" | "quantity";
 
+export type OCRChip = {
+  id: string;
+  text: string;
+  type: OCRFieldType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 export type ReceiptLineItem = {
   id: string;
   name: string;
@@ -11,6 +21,7 @@ export type ReceiptLineItem = {
 
 export type OCRResult = {
   fullText: string;
+  chips: OCRChip[];
   items?: ReceiptLineItem[];
 };
 
@@ -90,11 +101,17 @@ function parseLine(line: string): ReceiptLineItem | null {
   };
 }
 
+/**
+ * Processes an image for text using ML Kit Text Recognition.
+ * Returns full text, parsed receipt items, and positioned chips for overlay.
+ */
 export async function processImageForText(
   imageUri: string,
+  imageSize?: { width: number; height: number },
 ): Promise<OCRResult> {
   let fullText = "";
   let items: ReceiptLineItem[] = [];
+  let chips: OCRChip[] = [];
 
   try {
     const result = await TextRecognition.recognize(imageUri);
@@ -105,6 +122,40 @@ export async function processImageForText(
       const parsed = parseLine(line);
       if (parsed) items.push(parsed);
     });
+
+    // Build positioned chips from ML Kit blocks for visual overlay
+    if (result?.blocks && imageSize) {
+      let chipIndex = 0;
+      for (const block of result.blocks) {
+        for (const line of block.lines ?? []) {
+          const text = (line.text ?? "").trim();
+          if (!text || text.length < 2) continue;
+
+          const frame = line.frame ?? line.boundingBox;
+          const x = frame?.left ?? frame?.x ?? 0;
+          const y = frame?.top ?? frame?.y ?? 0;
+          const w = frame?.width ?? 100;
+          const h = frame?.height ?? 30;
+
+          // Determine chip type
+          const priceMatch = text.match(/(?:₱|PHP|P)?\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})/i);
+          const chipType: OCRFieldType = priceMatch ? "price" : "name";
+          const chipText = priceMatch
+            ? (normalizePrice(priceMatch[0])?.toFixed(2) ?? text)
+            : text;
+
+          chips.push({
+            id: `chip-${chipIndex++}`,
+            text: chipText,
+            type: chipType,
+            x,
+            y,
+            width: w,
+            height: h,
+          });
+        }
+      }
+    }
   } catch (error) {
     console.error("OCR Error:", error);
     // Fallback demo data if OCR fails or for testing
@@ -113,6 +164,28 @@ export async function processImageForText(
     lines.forEach(line => {
       const parsed = parseLine(line);
       if (parsed) items.push(parsed);
+    });
+
+    // Generate fallback chips for demo
+    items.forEach((item, idx) => {
+      chips.push({
+        id: `chip-name-${idx}`,
+        text: item.name,
+        type: "name",
+        x: 20,
+        y: 40 + idx * 80,
+        width: 200,
+        height: 30,
+      });
+      chips.push({
+        id: `chip-price-${idx}`,
+        text: item.price.toFixed(2),
+        type: "price",
+        x: 240,
+        y: 40 + idx * 80,
+        width: 100,
+        height: 30,
+      });
     });
   }
 
@@ -129,6 +202,7 @@ export async function processImageForText(
 
   return {
     fullText,
+    chips,
     items: uniqueItems,
   };
 }
