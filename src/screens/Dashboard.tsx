@@ -5,6 +5,7 @@ import {
   Info,
   PackagePlus,
   PieChart,
+  Receipt,
   ShoppingCart,
   TrendingUp,
 } from "lucide-react-native";
@@ -197,13 +198,22 @@ export const Dashboard: React.FC = () => {
         {/* ── Quick Actions ── */}
         <Text style={styles.sectionLabel}>Quick Actions</Text>
         <View style={styles.actionSection}>
-          <BigButton
-            title="Incoming Stock"
-            color={COLORS.primary}
-            onPress={() => router.push("/intake")}
-            style={styles.mainButton}
-            icon={<PackagePlus color={COLORS.white} size={24} />}
-          />
+          <View style={styles.actionRow}>
+            <BigButton
+              title="Incoming Stock"
+              color={COLORS.primary}
+              onPress={() => router.push("/intake")}
+              style={[styles.mainButton, { flex: 1 }]}
+              icon={<PackagePlus color={COLORS.white} size={24} />}
+            />
+            <BigButton
+              title="Scan Receipt"
+              color={COLORS.secondary}
+              onPress={() => router.push("/intake?mode=receipt&source=dashboard")}
+              style={[styles.mainButton, { flex: 1 }]}
+              icon={<Receipt color={COLORS.primary} size={24} />}
+            />
+          </View>
           <BigButton
             title="Sell Items"
             color={COLORS.success}
@@ -402,6 +412,10 @@ const styles = StyleSheet.create({
   actionSection: {
     marginBottom: SPACING.lg,
     gap:          SPACING.sm,
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: SPACING.sm,
   },
   mainButton: {
     height: 64,

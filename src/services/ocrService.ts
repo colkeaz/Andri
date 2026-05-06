@@ -1,6 +1,6 @@
 import TextRecognition from "@react-native-ml-kit/text-recognition";
 
-export type OCRFieldType = "name" | "price";
+export type OCRFieldType = "name" | "price" | "quantity";
 
 export type OCRChip = {
   id: string;
@@ -23,13 +23,23 @@ type RecognizedBlock = {
   };
 };
 
+export type ReceiptLineItem = {
+  id: string;
+  name: string;
+  quantity: number;
+  price: number; // Unit price
+};
+
 export type OCRResult = {
   fullText: string;
   chips: OCRChip[];
+  items?: ReceiptLineItem[];
 };
 
 const PRICE_REGEX =
   /(?:\b(?:PHP|PESOS)\s*)?(?:[Pp]|₱)?\s*(\d{1,5}(?:[.,]\d{2})?)/g;
+
+const QTY_REGEX = /(?:^|\s)(\d{1,3})\s*(?:PCS|X|QTY|UNITS|PIECES)\b/i;
 
 function normalizePrice(raw: string): number | null {
   const match = raw.match(/(\d{1,5}(?:[.,]\d{2})?)/);
@@ -42,6 +52,7 @@ function normalizePrice(raw: string): number | null {
 function inferNameFromLine(line: string): string | null {
   const cleaned = line
     .replace(PRICE_REGEX, "")
+    .replace(QTY_REGEX, "")
     .replace(/[^A-Za-z0-9\s&().,-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -79,6 +90,7 @@ function parseBlocksToChips(blocks: RecognizedBlock[]): OCRChip[] {
     const width = Number(block.frame?.width ?? 240);
     const height = Number(block.frame?.height ?? 24);
 
+    // Detect Prices
     const prices = [...blockText.matchAll(PRICE_REGEX)];
     prices.forEach((priceMatch, pIndex) => {
       const priceText = priceMatch[0].trim();
@@ -97,6 +109,22 @@ function parseBlocksToChips(blocks: RecognizedBlock[]): OCRChip[] {
       });
     });
 
+    // Detect Quantities
+    const qtyMatch = blockText.match(QTY_REGEX);
+    if (qtyMatch) {
+      chips.push({
+        id: `qty-${index}`,
+        text: qtyMatch[1],
+        type: "quantity",
+        score: 0.85,
+        x: left,
+        y: top,
+        width: 40,
+        height,
+      });
+    }
+
+    // Detect Names
     const inferredName = inferNameFromLine(blockText);
     if (inferredName) {
       chips.push({
@@ -113,6 +141,38 @@ function parseBlocksToChips(blocks: RecognizedBlock[]): OCRChip[] {
   });
 
   return chips.sort((a, b) => b.score - a.score);
+}
+
+function extractItemsFromBlocks(blocks: RecognizedBlock[]): ReceiptLineItem[] {
+  const items: ReceiptLineItem[] = [];
+
+  blocks.forEach((block, index) => {
+    const line = (block.text ?? "").trim();
+    if (!line) return;
+
+    // A typical line has Name, maybe Qty, and Price
+    const name = inferNameFromLine(line);
+    if (!name) return;
+
+    const prices = [...line.matchAll(PRICE_REGEX)];
+    if (prices.length === 0) return;
+
+    // Use the first price found as the unit price
+    const unitPrice = normalizePrice(prices[0][0]) || 0;
+    
+    // Check for quantity
+    const qtyMatch = line.match(QTY_REGEX);
+    const quantity = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
+
+    items.push({
+      id: `item-${index}`,
+      name,
+      quantity,
+      price: unitPrice,
+    });
+  });
+
+  return items;
 }
 
 export async function processImageForText(
@@ -141,13 +201,14 @@ export async function processImageForText(
       },
     }));
   } catch {
-    // Fallback text keeps the OCR flow demoable if ML Kit is unavailable.
-    fullText = "COKE 1.5L 65.00\nLUCKY ME BEEF 18.50\nWATER 25.00";
+    // Fallback text for testing/demo
+    fullText = "2x COKE 1.5L 65.00\n5 PCS LUCKY ME BEEF 18.50\nWATER 500ML 25.00";
     blocks = makeFallbackBlocks(fullText);
   }
 
   return {
     fullText,
     chips: parseBlocksToChips(blocks),
+    items: extractItemsFromBlocks(blocks),
   };
 }

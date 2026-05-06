@@ -175,6 +175,72 @@ export const dbService = {
     }
   },
 
+  processReceiptTransaction: async (
+    items: { name: string; quantity: number; price: number }[],
+    type: "PURCHASE" | "SALE",
+  ) => {
+    const db = await getDB();
+    await db.execAsync("BEGIN TRANSACTION");
+    try {
+      for (const item of items) {
+        const product = await db.getFirstAsync<{ id: string }>(
+          "SELECT id FROM products WHERE UPPER(name) = UPPER(?)",
+          [item.name],
+        );
+
+        let productId = product?.id;
+        if (!productId) {
+          productId = `P-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          await db.runAsync(
+            "INSERT INTO products (id, name, min_stock_level) VALUES (?, ?, ?)",
+            [productId, item.name, 5],
+          );
+        }
+
+        if (type === "PURCHASE") {
+          const batchId = `B-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          const sellingPrice = Number((item.price * 1.15).toFixed(2));
+          await db.runAsync(
+            "INSERT INTO inventory (id, product_id, quantity, cost_price, selling_price) VALUES (?, ?, ?, ?, ?)",
+            [batchId, productId, item.quantity, item.price, sellingPrice],
+          );
+        } else {
+          const batches = await db.getAllAsync<{ id: string; quantity: number }>(
+            "SELECT id, quantity FROM inventory WHERE product_id = ? AND quantity > 0 ORDER BY date_added ASC",
+            [productId],
+          );
+          
+          let remaining = item.quantity;
+          for (const batch of batches) {
+            if (remaining <= 0) break;
+            const batchQty = Number(batch.quantity);
+            const deduct = Math.min(batchQty, remaining);
+            await db.runAsync(
+              "UPDATE inventory SET quantity = quantity - ? WHERE id = ?",
+              [deduct, batch.id],
+            );
+            remaining -= deduct;
+          }
+
+          await db.runAsync(
+            "INSERT INTO sales (id, product_id, quantity, total_price, timestamp) VALUES (?, ?, ?, ?, ?)",
+            [
+              `S-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              productId,
+              item.quantity,
+              item.quantity * item.price,
+              new Date().toISOString(),
+            ],
+          );
+        }
+      }
+      await db.execAsync("COMMIT");
+    } catch (error) {
+      await db.execAsync("ROLLBACK");
+      throw error;
+    }
+  },
+
   resetDemoData: async () => {
     const db = await getDB();
     await db.execAsync("BEGIN TRANSACTION");
