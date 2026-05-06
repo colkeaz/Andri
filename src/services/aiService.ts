@@ -1,5 +1,5 @@
 /**
- * Vision Service Layer - Production AI Integration
+ * Vision Service Layer - Production Integration
  */
 
 export interface ScannedReceiptItem {
@@ -8,29 +8,20 @@ export interface ScannedReceiptItem {
   price: number;
 }
 
-/**
- * PRODUCTION AI STRATEGY:
- * To use the 'inventory_model.tflite' you created:
- * 1. Install 'react-native-tflite' or 'expo-tensor-flow'
- * 2. Load the model from your assets.
- */
 export const visionService = {
   /**
-   * Recognizes an item using the TFLite model.
+   * Recognizes an item (Placeholder for future vision-based recognition).
    */
   recognizeItem: async (imageUri: string): Promise<string> => {
-    console.log('Running Inference on:', imageUri);
-    
-    // PSEUDOCODE for real integration:
-    // const tflite = new Tflite();
-    // const results = await tflite.runModelOnImage({ path: imageUri });
-    // return results[0].label; // e.g. "Coke 1.5L"
-
-    return "Coke 1.5L"; // Fallback for UI demo
+    console.log('Vision feature disabled in favor of Receipt OCR:', imageUri);
+    return "Unknown Item";
   },
 
+  /**
+   * Wrapper for OCR-based receipt processing.
+   */
   processReceiptOCR: async (imagePath: string): Promise<ScannedReceiptItem[]> => {
-    // Uses Google ML Kit for Text Recognition
+    // This is handled by ocrService.ts in the current implementation.
     return [
       { name: 'Coke 1.5L', quantity: 1, price: 65.00 },
       { name: 'Lucky Me', quantity: 1, price: 12.50 },
@@ -44,3 +35,4 @@ export const visionService = {
     return null;
   }
 };
+

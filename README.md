@@ -19,16 +19,16 @@ This app features a "Touch-First," high-contrast UI designed for extreme legibil
 2.  **"Profit Guard" System**: Automatically detects when a new batch of stock has a higher supplier price and suggests a new selling price to maintain your target profit margin (e.g., 15%).
 3.  **Dead-Stock Warnings**: Visual alerts for items that haven't moved in 30 days, suggesting a "Flash Sale" price to liquidate stock.
 4.  **Quick-Scan POS**: Turn your phone's camera into a rapid barcode scanner for fast checkouts, with a "Quick Tap" grid for non-barcoded items (like loose eggs or bread).
-5.  **Visual Intake (Camera OCR)**: Snap a photo of your receipt or shelf to quickly add new stock (ready for integration with custom AI models).
+5.  **Smart Receipt Scanning (OCR)**: Snap a photo of any wholesaler receipt. The system automatically extracts product names, quantities, and prices to bulk-update your stock in seconds.
 6.  **Offline-First**: Uses a local SQLite database to ensure the app works flawlessly even without an internet connection.
 
 ## 🛠️ Technology Stack
 
 - **Framework**: React Native with Expo Router (Cross-platform iOS/Android)
 - **Database**: `expo-sqlite` for local persistence
-- **Camera & Scanning**: `expo-camera` for barcode scanning and visual intake
+- **Camera & Scanning**: `expo-camera` for barcode scanning and high-speed image capture
+- **OCR Engine**: Google ML Kit for on-device text recognition
 - **Styling**: Custom theme tokens with `lucide-react-native` icons
-- **AI Readiness**: Architecture prepared for local TensorFlow Lite (`.tflite`) model integration.
 
 ## 🚀 Clone, Install, and Run
 
@@ -70,7 +70,6 @@ npm run web
 
 ```bash
 npm run android
-npm run ios
 ```
 
 ### 4) Open in Cursor browser tab (Web Demo)
@@ -94,9 +93,9 @@ npm run lint
 - The app is local-first; it uses SQLite on native and localStorage on web.
 - For native ML Kit OCR, use a dev build / prebuild workflow (not Expo Go) because native modules must be linked.
 
-## 🧠 AI / OCR Setup Notes
+## 🧠 OCR Setup Notes
 
-The app includes OCR extraction and tap-to-inject flow through ML Kit integration in `src/services/ocrService.ts`.
+The app includes advanced OCR extraction and bulk-add flow through ML Kit integration in `src/services/ocrService.ts`.
 
 Important for device testing:
 
@@ -105,17 +104,8 @@ Important for device testing:
   ```bash
   npx expo prebuild
   npx expo run:android
-  # or
-  npx expo run:ios
   ```
 
-## 🧠 AI Training (Optional Advanced Setup)
-
-To enable the camera to automatically recognize specific local products (instead of just barcodes or manual entry), you can train a custom AI model.
-
-1.  A training script (`train_model.py`) is included in the project root.
-2.  Please refer to the `AI_TRAINING_GUIDE.md` (located in your AI assistant's artifacts or project notes) for details on downloading the **Sari Sandbox** dataset and generating an `inventory_model.tflite` file.
-3.  Once generated, place the `.tflite` model in the app's assets and uncomment the integration logic in `src/services/aiService.ts`.
 
 ## 📱 Project Structure
 
