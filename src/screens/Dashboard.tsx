@@ -21,6 +21,7 @@ import {
   Text,
   View,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 
 import { AlertCard } from "../components/AlertCard";
 import { BigButton } from "../components/BigButton";
@@ -165,24 +166,26 @@ export const Dashboard: React.FC = () => {
     [selectedAlertId, visibleAlerts],
   );
 
-  const handleSuggestionAction = () => {
+  const handleSuggestionAction = async () => {
     if (!selectedAlert) return;
     
-    let title = "";
-    let body = "";
-
     if (selectedAlert.type === "PRICE_HIKE") {
-      title = "Profit Guard™ Applied";
-      body = "The selling price has been adjusted to maintain your 15% margin.";
+      // Actually update the selling price in the database
+      const productId = selectedAlert.id.replace("margin-", "");
+      const inventory = await getAggregatedInventory();
+      const product = inventory.find(p => p.id === productId);
+      if (product) {
+        const newPrice = Number((product.costPrice * 1.15).toFixed(2));
+        await dbService.updateInventoryPrices(productId, { sellingPrice: newPrice });
+      }
+      Alert.alert("Profit Guard™ Applied", "The selling price has been adjusted to maintain your 15% margin.");
     } else if (selectedAlert.type === "DEAD_STOCK") {
-      title = "Clearance Tagged";
-      body = "This item is now marked for flash sale. It will show a special badge in the POS.";
+      Alert.alert("Clearance Tagged", "This item is now marked for flash sale.");
     } else {
-      title = "Restock Noted";
-      body = "Added to your shopping list for the next wholesaler visit.";
+      // Navigate to intake for restocking
+      router.push("/intake?mode=manual&source=dashboard");
+      Alert.alert("Restock Reminder", "Add new stock for this item.");
     }
-
-    Alert.alert(title, body);
     setDismissedAlertIds((prev) => [...prev, selectedAlert.id]);
     setSelectedAlertId(null);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -355,7 +358,7 @@ export const Dashboard: React.FC = () => {
 
           {salesHistory.length === 0 ? (
             <View style={styles.txEmpty}>
-              <Text style={styles.txEmptyText}>No sales recorded yet. Complete a sale to see it here.</Text>
+              <Text style={styles.txEmptyText}>Wala pang benta. Gumawa ng transaksyon sa Kaha.</Text>
             </View>
           ) : (
             <>
@@ -363,7 +366,7 @@ export const Dashboard: React.FC = () => {
                 <View key={sale.id} style={styles.txCard}>
                   <View style={styles.txLeft}>
                     <Text style={styles.txName} numberOfLines={1}>{sale.productName}</Text>
-                    <Text style={styles.txMeta}>{sale.quantity} unit{sale.quantity !== 1 ? "s" : ""} sold</Text>
+                    <Text style={styles.txMeta}>{sale.quantity} sold</Text>
                   </View>
                   <View style={styles.txRight}>
                     <Text style={styles.txAmount}>₱{sale.totalPrice.toFixed(2)}</Text>
@@ -401,7 +404,7 @@ export const Dashboard: React.FC = () => {
           <View style={styles.modalCard}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
-              <Text style={TYPOGRAPHY.h2}>Suggestion Details</Text>
+              <Text style={TYPOGRAPHY.h2}>Suggestion Detail</Text>
             </View>
             <Text style={styles.modalTitle}>{selectedAlert?.title}</Text>
             <Text style={styles.modalMessage}>{selectedAlert?.message}</Text>

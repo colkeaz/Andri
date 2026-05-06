@@ -71,10 +71,10 @@ export const POSScreen: React.FC = () => {
     return (
       <View style={styles.permissionWrap}>
         <ScanLine color={COLORS.textSecondary} size={64} />
-        <Text style={styles.permissionTitle}>Camera Access Needed</Text>
-        <Text style={styles.permissionBody}>Allow camera access to scan barcodes at checkout.</Text>
+        <Text style={styles.permissionTitle}>Camera Access Required</Text>
+        <Text style={styles.permissionBody}>Please grant camera permission to scan barcodes at checkout.</Text>
         <Pressable style={styles.permissionBtn} onPress={requestPermission}>
-          <Text style={styles.permissionBtnText}>Grant Access</Text>
+          <Text style={styles.permissionBtnText}>Grant Permission</Text>
         </Pressable>
       </View>
     );
@@ -178,7 +178,7 @@ export const POSScreen: React.FC = () => {
               ? <CheckCircle2 color={COLORS.success} size={48} />
               : <ScanLine color={COLORS.white} size={48} style={{ opacity: 0.9 }} />}
           </View>
-          <Text style={styles.scanHint}>{scanned ? "Item added!" : "Point at a barcode"}</Text>
+          <Text style={styles.scanHint}>{scanned ? "Scanned!" : "Point at barcode"}</Text>
         </View>
       </CameraView>
 
@@ -188,9 +188,9 @@ export const POSScreen: React.FC = () => {
         {/* Total bar */}
         <View style={styles.totalRow}>
           <View>
-            <Text style={styles.totalLabel}>Current Sale</Text>
+            <Text style={styles.totalLabel}>Current Transaction</Text>
             {itemCount > 0 && (
-              <Text style={styles.itemCountText}>{itemCount} item{itemCount !== 1 ? "s" : ""}</Text>
+              <Text style={styles.itemCountText}>{itemCount} item{itemCount !== 1 ? 's' : ''}</Text>
             )}
           </View>
           <Text style={styles.totalAmount}>₱{total.toFixed(2)}</Text>
@@ -200,7 +200,7 @@ export const POSScreen: React.FC = () => {
         <ScrollView style={styles.cartList} showsVerticalScrollIndicator={false}>
           {cart.length === 0 ? (
             <View style={styles.emptyCart}>
-              <Text style={styles.emptyCartText}>Scan a barcode or tap a quick item below</Text>
+              <Text style={styles.emptyCartText}>Scan barcode or select below</Text>
             </View>
           ) : (
             cart.map((item) => {
@@ -258,7 +258,7 @@ export const POSScreen: React.FC = () => {
 
           {!isLoadingInventory && inventory.length === 0 ? (
             <View style={styles.emptyQuickAdd}>
-              <Text style={styles.emptyQuickAddText}>No items found. Add stock to see them here.</Text>
+              <Text style={styles.emptyQuickAddText}>No items found. Add stock to begin.</Text>
             </View>
           ) : (
             <ScrollView
@@ -289,7 +289,7 @@ export const POSScreen: React.FC = () => {
                     </Text>
                     <Text style={styles.quickChipPrice}>₱{item.sellingPrice.toFixed(2)}</Text>
                     <Text style={[styles.quickChipStock, isLow && { color: COLORS.error }]}>
-                      {isOut ? "Out" : `${effectiveStock} left`}
+                      {isOut ? "Out of Stock" : `${effectiveStock} left`}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -300,7 +300,7 @@ export const POSScreen: React.FC = () => {
 
         {/* Checkout Button */}
         <BigButton
-          title={isProcessingSale ? "PROCESSING..." : `COMPLETE SALE · ₱${total.toFixed(2)}`}
+          title={isProcessingSale ? "PROCESSING..." : `FINISH SALE · ₱${total.toFixed(2)}`}
           color={COLORS.success}
           onPress={openConfirm}
           style={styles.checkoutBtn}
@@ -323,7 +323,7 @@ export const POSScreen: React.FC = () => {
             </View>
 
             <Text style={styles.modalSubtitle}>
-              Please review your order before completing the transaction.
+              Review items before finishing the sale.
             </Text>
 
             {/* Order lines */}
@@ -348,7 +348,7 @@ export const POSScreen: React.FC = () => {
             </View>
 
             <Text style={styles.confirmNote}>
-              Stock levels will be deducted automatically after confirmation.
+              Stock will be deducted automatically upon confirmation.
             </Text>
 
             <View style={styles.modalActions}>
@@ -356,13 +356,13 @@ export const POSScreen: React.FC = () => {
                 style={({ pressed }) => [styles.btnCancel, pressed && { opacity: 0.75 }]}
                 onPress={() => setShowConfirm(false)}
               >
-                <Text style={styles.btnCancelText}>Go Back</Text>
+                <Text style={styles.btnCancelText}>Cancel</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [styles.btnConfirm, pressed && { opacity: 0.85 }]}
                 onPress={executeSale}
               >
-                <Text style={styles.btnConfirmText}>✓ Confirm Sale</Text>
+                <Text style={styles.btnConfirmText}>✓ Confirm</Text>
               </Pressable>
             </View>
           </View>
@@ -434,10 +434,10 @@ const styles = StyleSheet.create({
   trashBtn:      { alignItems: "center" },
 
   // Compact stepper
-  stepper:         { flexDirection: "row", alignItems: "center", gap: 2 },
-  stepBtn:         { width: 22, height: 22, borderRadius: RADIUS.sm, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.overlay, alignItems: "center", justifyContent: "center" },
+  stepper:         { flexDirection: "row", alignItems: "center", gap: 6 },
+  stepBtn:         { width: 36, height: 36, borderRadius: RADIUS.md, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.overlay, alignItems: "center", justifyContent: "center" },
   stepBtnDisabled: { opacity: 0.35 },
-  stepQty:         { fontSize: 13, fontWeight: "700", minWidth: 20, textAlign: "center", color: COLORS.textPrimary },
+  stepQty:         { fontSize: 16, fontWeight: "700", minWidth: 24, textAlign: "center", color: COLORS.textPrimary },
 
   // Divider
   divider: { height: 1, backgroundColor: COLORS.overlay, marginVertical: SPACING.sm },
