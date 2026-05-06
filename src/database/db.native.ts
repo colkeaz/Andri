@@ -241,6 +241,78 @@ export const dbService = {
     }
   },
 
+  updateProduct: async (
+    productId: string,
+    fields: { name?: string; barcode?: string | null; minStockLevel?: number },
+  ) => {
+    try {
+      const db = await getDB();
+      if (fields.name !== undefined) {
+        await db.runAsync("UPDATE products SET name = ? WHERE id = ?", [fields.name, productId]);
+      }
+      if (fields.barcode !== undefined) {
+        await db.runAsync("UPDATE products SET barcode = ? WHERE id = ?", [fields.barcode, productId]);
+      }
+      if (fields.minStockLevel !== undefined) {
+        await db.runAsync("UPDATE products SET min_stock_level = ? WHERE id = ?", [fields.minStockLevel, productId]);
+      }
+    } catch (error) {
+      console.error("updateProduct (native) failed", error);
+    }
+  },
+
+  updateInventoryPrices: async (
+    productId: string,
+    fields: { sellingPrice?: number; costPrice?: number; quantity?: number },
+  ) => {
+    try {
+      const db = await getDB();
+      if (fields.quantity !== undefined) {
+        const target = Math.max(0, Math.floor(fields.quantity));
+        // Get all batches ordered oldest-first
+        const batches = await db.getAllAsync<{ id: string; quantity: number }>(
+          "SELECT id, quantity FROM inventory WHERE product_id = ? ORDER BY date_added ASC",
+          [productId],
+        );
+        // Zero out all, then set last batch to target
+        for (const b of batches) {
+          await db.runAsync("UPDATE inventory SET quantity = 0 WHERE id = ?", [b.id]);
+        }
+        if (batches.length > 0) {
+          const last = batches[batches.length - 1];
+          await db.runAsync("UPDATE inventory SET quantity = ? WHERE id = ?", [target, last.id]);
+        }
+      }
+      if (fields.sellingPrice !== undefined) {
+        await db.runAsync(
+          "UPDATE inventory SET selling_price = ? WHERE product_id = ?",
+          [fields.sellingPrice, productId],
+        );
+      }
+      if (fields.costPrice !== undefined) {
+        await db.runAsync(
+          "UPDATE inventory SET cost_price = ? WHERE product_id = ?",
+          [fields.costPrice, productId],
+        );
+      }
+    } catch (error) {
+      console.error("updateInventoryPrices (native) failed", error);
+    }
+  },
+
+  deleteProduct: async (productId: string) => {
+    try {
+      const db = await getDB();
+      await db.execAsync("BEGIN TRANSACTION");
+      await db.runAsync("DELETE FROM inventory WHERE product_id = ?", [productId]);
+      await db.runAsync("DELETE FROM products WHERE id = ?", [productId]);
+      await db.execAsync("COMMIT");
+    } catch (error) {
+      await (await getDB()).execAsync("ROLLBACK");
+      console.error("deleteProduct (native) failed", error);
+    }
+  },
+
   resetDemoData: async () => {
     const db = await getDB();
     await db.execAsync("BEGIN TRANSACTION");

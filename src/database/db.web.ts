@@ -263,6 +263,84 @@ export const dbService = {
     writeStore(nextStore);
   },
 
+  /** Update product name, barcode, and min stock level */
+  updateProduct: async (
+    productId: string,
+    fields: { name?: string; barcode?: string | null; minStockLevel?: number },
+  ): Promise<void> => {
+    try {
+      const store = readStore();
+      store.products = store.products.map((p) =>
+        p.id === productId
+          ? {
+              ...p,
+              name:            fields.name            ?? p.name,
+              barcode:         fields.barcode         !== undefined ? fields.barcode : p.barcode,
+              min_stock_level: fields.minStockLevel   ?? p.min_stock_level,
+            }
+          : p,
+      );
+      writeStore(store);
+    } catch (error) {
+      console.error("updateProduct (web) failed", error);
+    }
+  },
+
+  /** Update selling price and cost price across ALL batches for a product */
+  updateInventoryPrices: async (
+    productId: string,
+    fields: { sellingPrice?: number; costPrice?: number; quantity?: number },
+  ): Promise<void> => {
+    try {
+      const store = readStore();
+      const batches = store.inventory.filter((row) => row.product_id === productId);
+      if (batches.length === 0) return;
+
+      // Set quantity by adjusting the newest batch; distribute if needed
+      if (fields.quantity !== undefined) {
+        const target = Math.max(0, Math.floor(fields.quantity));
+        // Collapse all batches into one canonical batch for simplicity
+        const canonical = batches[batches.length - 1];
+        // Zero out all old batches
+        store.inventory = store.inventory.map((row) =>
+          row.product_id === productId ? { ...row, quantity: 0 } : row,
+        );
+        // Set target on the last batch
+        store.inventory = store.inventory.map((row) =>
+          row.id === canonical.id ? { ...row, quantity: target } : row,
+        );
+      }
+
+      if (fields.sellingPrice !== undefined || fields.costPrice !== undefined) {
+        store.inventory = store.inventory.map((row) =>
+          row.product_id === productId
+            ? {
+                ...row,
+                selling_price: fields.sellingPrice ?? row.selling_price,
+                cost_price:    fields.costPrice    ?? row.cost_price,
+              }
+            : row,
+        );
+      }
+
+      writeStore(store);
+    } catch (error) {
+      console.error("updateInventoryPrices (web) failed", error);
+    }
+  },
+
+  /** Delete a product and all its inventory batches */
+  deleteProduct: async (productId: string): Promise<void> => {
+    try {
+      const store = readStore();
+      store.products  = store.products.filter((p)   => p.id !== productId);
+      store.inventory = store.inventory.filter((row) => row.product_id !== productId);
+      writeStore(store);
+    } catch (error) {
+      console.error("deleteProduct (web) failed", error);
+    }
+  },
+
   resetDemoData: async (): Promise<void> => {
     const demoProducts: ProductRow[] = [
       {

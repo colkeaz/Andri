@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import {
   CircleX,
   Edit3,
@@ -9,7 +9,7 @@ import {
   ShoppingCart,
   TrendingUp,
 } from "lucide-react-native";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Modal,
@@ -47,56 +47,61 @@ export const Dashboard: React.FC = () => {
     averageMargin:   0,
   });
 
-  React.useEffect(() => {
-    const loadAlerts = async () => {
-      const inventory = await getAggregatedInventory();
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const loadAlerts = async () => {
+        const inventory = await getAggregatedInventory();
+        if (!active) return;
 
-      const computedAlerts: DashboardAlert[] = inventory
-        .map((item) => {
-          const estimatedCost = item.sellingPrice * 0.9;
-          const margin =
-            item.sellingPrice > 0
-              ? ((item.sellingPrice - estimatedCost) / item.sellingPrice) * 100
-              : 0;
+        const computedAlerts: DashboardAlert[] = inventory
+          .map((item) => {
+            const estimatedCost = item.sellingPrice * 0.9;
+            const margin =
+              item.sellingPrice > 0
+                ? ((item.sellingPrice - estimatedCost) / item.sellingPrice) * 100
+                : 0;
 
-          if (item.totalStock <= 0 || margin >= 12) return null;
+            if (item.totalStock <= 0 || margin >= 12) return null;
 
-          return {
-            id:          `margin-${item.id}`,
-            type:        "PRICE_HIKE" as const,
-            title:       `Low Margin: ${item.name}`,
-            message:     `Margin is ${margin.toFixed(1)}%. Aim for at least 12% to protect your profit.`,
-            actionLabel: "Review Price",
-          };
-        })
-        .filter((item): item is DashboardAlert => item !== null);
+            return {
+              id:          `margin-${item.id}`,
+              type:        "PRICE_HIKE" as const,
+              title:       `Low Margin: ${item.name}`,
+              message:     `Margin is ${margin.toFixed(1)}%. Aim for at least 12% to protect your profit.`,
+              actionLabel: "Review Price",
+            };
+          })
+          .filter((item): item is DashboardAlert => item !== null);
 
-      const inventoryValue = inventory.reduce(
-        (sum, item) => sum + item.totalStock * item.sellingPrice,
-        0,
-      );
-      const lowStockCount = inventory.filter(
-        (item) => item.totalStock <= item.minStockLevel,
-      ).length;
-      const totalStockItems = inventory.length;
-      const averageMargin =
-        inventory.length > 0
-          ? inventory.reduce((sum, item) => {
-              const estimatedCost = item.sellingPrice * 0.9;
-              const margin =
-                item.sellingPrice > 0
-                  ? ((item.sellingPrice - estimatedCost) / item.sellingPrice) * 100
-                  : 0;
-              return sum + margin;
-            }, 0) / inventory.length
-          : 0;
+        const inventoryValue = inventory.reduce(
+          (sum, item) => sum + item.totalStock * item.sellingPrice,
+          0,
+        );
+        const lowStockCount = inventory.filter(
+          (item) => item.totalStock <= item.minStockLevel,
+        ).length;
+        const totalStockItems = inventory.length;
+        const averageMargin =
+          inventory.length > 0
+            ? inventory.reduce((sum, item) => {
+                const estimatedCost = item.sellingPrice * 0.9;
+                const margin =
+                  item.sellingPrice > 0
+                    ? ((item.sellingPrice - estimatedCost) / item.sellingPrice) * 100
+                    : 0;
+                return sum + margin;
+              }, 0) / inventory.length
+            : 0;
 
-      setProfitAlerts(computedAlerts);
-      setStoreHealth({ inventoryValue, lowStockCount, totalStockItems, averageMargin });
-    };
+        setProfitAlerts(computedAlerts);
+        setStoreHealth({ inventoryValue, lowStockCount, totalStockItems, averageMargin });
+      };
 
-    loadAlerts();
-  }, []);
+      loadAlerts();
+      return () => { active = false; };
+    }, []),
+  );
 
   const visibleAlerts = useMemo(
     () => profitAlerts.filter((item) => !dismissedAlertIds.includes(item.id)),
