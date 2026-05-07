@@ -1,13 +1,14 @@
 import * as Haptics from "expo-haptics";
 import React from "react";
 import {
+  StyleProp,
   StyleSheet,
   Text,
   TouchableOpacity,
   Vibration,
   ViewStyle,
 } from "react-native";
-import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
+import { COLORS, LAYOUT, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
 
 interface BigButtonProps {
   title: string;
@@ -15,16 +16,11 @@ interface BigButtonProps {
   color?: string;
   textColor?: string;
   icon?: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   variant?: "filled" | "outlined" | "ghost";
+  disabled?: boolean;
 }
 
-/**
- * Primary action button – Productive Minimalism edition.
- * - Minimum 56 px height (well above Apple's 44 px guideline)
- * - Crisp shadows on white, not heavy elevation
- * - Haptic + micro-vibration feedback
- */
 export const BigButton: React.FC<BigButtonProps> = ({
   title,
   onPress,
@@ -33,33 +29,46 @@ export const BigButton: React.FC<BigButtonProps> = ({
   icon,
   style,
   variant = "filled",
+  disabled = false,
 }) => {
   const handlePress = async () => {
+    if (disabled) return;
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Vibration.vibrate(4);
     onPress();
   };
 
   const isOutlined = variant === "outlined";
-  const isGhost    = variant === "ghost";
-
-  const resolvedBg    = isOutlined || isGhost ? COLORS.background : color;
-  const resolvedBorder= isOutlined ? color : "transparent";
-  const resolvedText  = textColor ?? (isOutlined || isGhost ? color : COLORS.white);
+  const isGhost = variant === "ghost";
+  const resolvedBg = isOutlined || isGhost ? COLORS.surface : color;
+  const resolvedBorder = isGhost ? "transparent" : isOutlined ? color : color;
+  const resolvedText = textColor ?? (isOutlined || isGhost ? color : COLORS.white);
 
   return (
     <TouchableOpacity
-      activeOpacity={0.82}
+      activeOpacity={0.84}
+      disabled={disabled}
       onPress={handlePress}
       style={[
         styles.container,
-        { backgroundColor: resolvedBg, borderColor: resolvedBorder },
-        !isGhost && SHADOW.card,
+        {
+          backgroundColor: resolvedBg,
+          borderColor: resolvedBorder,
+          opacity: disabled ? 0.55 : 1,
+        },
+        !isGhost && SHADOW.soft,
         style,
       ]}
     >
       {icon}
-      <Text style={[styles.label, { color: resolvedText, marginLeft: icon ? SPACING.xs : 0 }]}>
+      <Text
+        style={[
+          styles.label,
+          { color: resolvedText, marginLeft: icon ? SPACING.xs : 0 },
+        ]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+      >
         {title}
       </Text>
     </TouchableOpacity>
@@ -68,14 +77,14 @@ export const BigButton: React.FC<BigButtonProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    minHeight:      56,
-    width:          "100%",
-    borderRadius:   RADIUS.lg,
-    flexDirection:  "row",
-    alignItems:     "center",
+    minHeight: LAYOUT.minTouch + 8,
+    width: "100%",
+    borderRadius: RADIUS.md,
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: SPACING.md,
-    borderWidth:    1.5,
+    borderWidth: 1,
   },
   label: {
     ...TYPOGRAPHY.buttonLabel,

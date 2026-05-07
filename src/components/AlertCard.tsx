@@ -1,7 +1,8 @@
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { TrendingUp, Package, AlertCircle } from "lucide-react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { AlertCircle, Package, TrendingUp } from "lucide-react-native";
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
+import { StatusPill } from "./ui";
 
 interface AlertCardProps {
   type: "PRICE_HIKE" | "DEAD_STOCK" | "LOW_STOCK";
@@ -20,29 +21,34 @@ export const AlertCard: React.FC<AlertCardProps> = ({
 }) => {
   const isDanger = type === "LOW_STOCK";
   const isWarning = type === "PRICE_HIKE";
-  
-  const accentColor = isDanger ? COLORS.error : (isWarning ? COLORS.warning : COLORS.primary);
-  
-  const Icon = type === "PRICE_HIKE" ? TrendingUp : (type === "DEAD_STOCK" ? Package : AlertCircle);
+  const tone = isDanger ? "danger" : isWarning ? "warning" : "primary";
+  const accentColor = isDanger ? COLORS.danger : isWarning ? COLORS.warning : COLORS.primary;
+  const Icon = type === "PRICE_HIKE" ? TrendingUp : type === "DEAD_STOCK" ? Package : AlertCircle;
 
   return (
-    <View style={[styles.container, { borderLeftColor: accentColor }]}>
+    <View style={[styles.container, { borderColor: accentColor + "55" }]}>
       <View style={styles.header}>
-        <View style={[styles.iconBox, { backgroundColor: accentColor + '20' }]}>
-          <Icon color={accentColor} size={24} />
+        <View style={[styles.iconBox, { backgroundColor: accentColor + "18" }]}>
+          <Icon color={accentColor} size={22} />
         </View>
-        <Text style={styles.title} numberOfLines={1}>{title}</Text>
+        <View style={styles.headerText}>
+          <Text style={styles.title} numberOfLines={2}>{title}</Text>
+          <StatusPill label={type.replace("_", " ")} tone={tone} />
+        </View>
       </View>
-      
+
       <Text style={styles.message}>{message}</Text>
 
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: accentColor }]}
+      <Pressable
+        style={({ pressed }) => [
+          styles.button,
+          { backgroundColor: accentColor },
+          pressed && styles.pressed,
+        ]}
         onPress={onAction}
-        activeOpacity={0.82}
       >
-        <Text style={styles.buttonText}>{actionLabel.toUpperCase()}</Text>
-      </TouchableOpacity>
+        <Text style={styles.buttonText}>{actionLabel}</Text>
+      </Pressable>
     </View>
   );
 };
@@ -50,17 +56,17 @@ export const AlertCard: React.FC<AlertCardProps> = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.surface,
-    borderRadius:    RADIUS.lg,
-    padding:         SPACING.md,
-    marginBottom:    SPACING.md,
-    borderLeftWidth: 6,
-    ...SHADOW.card,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    ...SHADOW.soft,
   },
   header: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
+    gap: SPACING.sm,
     marginBottom: SPACING.sm,
-    gap: 12,
   },
   iconBox: {
     width: 44,
@@ -69,31 +75,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  title: {
+  headerText: {
     flex: 1,
-    ...TYPOGRAPHY.bodyLarge,
-    fontSize: 18,
-    fontWeight: "800",
-    color: COLORS.textPrimary,
+    gap: 8,
+  },
+  title: {
+    ...TYPOGRAPHY.bodyBold,
+    fontSize: 16,
+    lineHeight: 21,
   },
   message: {
     ...TYPOGRAPHY.body,
-    fontSize: 15,
-    lineHeight: 24,
-    color: COLORS.textSecondary,
+    lineHeight: 21,
     marginBottom: SPACING.md,
   },
   button: {
-    height:         56, // Massive touch target
-    borderRadius:   RADIUS.md,
-    alignItems:     "center",
+    minHeight: 48,
+    borderRadius: RADIUS.md,
+    alignItems: "center",
     justifyContent: "center",
-    ...SHADOW.card,
   },
   buttonText: {
     ...TYPOGRAPHY.buttonLabel,
-    fontSize: 16,
-    fontWeight: "900",
-    letterSpacing: 1,
+    fontSize: 14,
+  },
+  pressed: {
+    opacity: 0.82,
   },
 });

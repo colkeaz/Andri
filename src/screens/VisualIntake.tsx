@@ -20,9 +20,10 @@ import {
   View,
 } from "react-native";
 import { BigButton } from "../components/BigButton";
+import { AppHeader, NoticeBanner, PremiumCard, StatusPill } from "../components/ui";
 import { dbService } from "../database/db";
 import { OCRChip, processImageForText } from "../services/ocrService";
-import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
+import { COLORS, LAYOUT, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
 
 export type VisualIntakeScreenProps = {
   onSwitchToManual?: () => void;
@@ -48,13 +49,14 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
     return (
       <View style={styles.permissionWrap}>
         <ScanLine color={COLORS.textSecondary} size={64} />
-        <Text style={styles.permissionTitle}>Camera Access Required</Text>
+        <Text style={styles.permissionTitle}>Camera scanner is optional</Text>
         <Text style={styles.permissionBody}>
-          Please grant camera permission to scan product labels.
+          Grant access to scan product labels, or continue with manual add.
         </Text>
-        <Pressable style={styles.permissionBtn} onPress={requestPermission}>
-          <Text style={styles.permissionBtnText}>Grant Permission</Text>
-        </Pressable>
+        <BigButton title="Grant Camera Access" onPress={requestPermission} />
+        {onSwitchToManual ? (
+          <BigButton title="Add Manually Instead" variant="outlined" onPress={onSwitchToManual} />
+        ) : null}
       </View>
     );
   }
@@ -167,13 +169,12 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      <View style={styles.cameraWrap}>
+      <View style={styles.cameraWrap} onLayout={onCameraLayout}>
         <CameraView
           ref={cameraRef}
-          style={styles.camera}
+          style={StyleSheet.absoluteFill}
           facing="back"
-          onLayout={onCameraLayout}
-        >
+        />
           <View style={styles.buttonContainer}>
             {isScanning && (
               <ActivityIndicator size="large" color={COLORS.white} />
@@ -201,19 +202,26 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
               </Pressable>
             );
           })}
-        </CameraView>
       </View>
 
       <View style={styles.content}>
         <ScrollView showsVerticalScrollIndicator={false}>
+          <AppHeader
+            eyebrow="Camera Intake"
+            title="Scan Product"
+            subtitle="Capture a label, then tap detected text to fill the item."
+            icon={<View style={styles.headerIcon}><ScanLine color={COLORS.primary} size={22} /></View>}
+            right={<StatusPill label="OCR" tone="primary" />}
+          />
+
           <BigButton
-            title={isScanning ? "SCANNING..." : "TAKE PHOTO"}
+            title={isScanning ? "Scanning..." : "Take Photo"}
             onPress={handleSnap}
             style={styles.snapButton}
             icon={<CameraIcon color={COLORS.white} size={32} />}
           />
 
-          <View style={styles.injectCard}>
+          <PremiumCard style={styles.injectCard}>
             <Text style={styles.injectTitle}>Tap to Auto-fill</Text>
             <Text style={styles.injectHint}>
               Tap the highlighted text above to fill the Name or Cost fields.
@@ -241,24 +249,32 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
             </View>
 
             <BigButton
-              title={isSaving ? "SAVING..." : "SAVE PRODUCT"}
+              title={isSaving ? "Saving..." : "Save Product"}
               color={COLORS.success}
               onPress={saveInjectedItem}
               style={styles.saveButton}
             />
-          </View>
+          </PremiumCard>
 
           {fullText ? (
-            <View style={styles.textDumpCard}>
+            <PremiumCard style={styles.textDumpCard}>
               <Text style={styles.textDumpTitle}>Detected Text</Text>
               <Text style={styles.textDumpValue}>{fullText}</Text>
-            </View>
-          ) : null}
+            </PremiumCard>
+          ) : (
+            <NoticeBanner
+              title="Ready to scan"
+              message="Good lighting and a flat label produce better OCR results."
+              tone="primary"
+              icon={<ScanLine color={COLORS.primary} size={20} />}
+            />
+          )}
 
           {onSwitchToManual ? (
             <BigButton
-              title="SWITCH TO MANUAL"
-              color={COLORS.secondary}
+              title="Switch to Manual"
+              variant="outlined"
+              color={COLORS.primary}
               onPress={onSwitchToManual}
               style={styles.manualButton}
               icon={<Keyboard color={COLORS.primary} size={28} />}
@@ -305,17 +321,23 @@ const styles = StyleSheet.create({
   permissionBtnText: {
     ...TYPOGRAPHY.buttonLabel,
   },
+  manualFallbackBtn: {
+    marginTop: SPACING.xs,
+    paddingVertical: 12,
+    paddingHorizontal: SPACING.md,
+  },
+  manualFallbackText: {
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.primary,
+  },
 
   // ── Camera ────────────────────────────────────────────────────
   cameraWrap: {
     height:   320,
     overflow: "hidden",
   },
-  camera: {
-    flex: 1,
-  },
   buttonContainer: {
-    flex:            1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.25)",
     justifyContent:  "center",
     alignItems:      "center",
@@ -348,17 +370,19 @@ const styles = StyleSheet.create({
     flex:    1,
     padding: SPACING.md,
   },
+  headerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   snapButton: {
-    marginTop: SPACING.sm,
+    marginTop: 0,
   },
   injectCard: {
     marginTop:       SPACING.sm,
-    backgroundColor: COLORS.surface,
-    borderRadius:    RADIUS.lg,
-    padding:         SPACING.md,
-    borderWidth:     1,
-    borderColor:     COLORS.overlay,
-    ...SHADOW.card,
   },
   injectTitle: {
     ...TYPOGRAPHY.bodyLarge,
@@ -394,11 +418,6 @@ const styles = StyleSheet.create({
   },
   textDumpCard: {
     marginTop:       SPACING.sm,
-    backgroundColor: COLORS.surface,
-    borderRadius:    RADIUS.md,
-    padding:         SPACING.md,
-    borderWidth:     1,
-    borderColor:     COLORS.overlay,
   },
   textDumpTitle: {
     ...TYPOGRAPHY.bodyLarge,
@@ -413,5 +432,6 @@ const styles = StyleSheet.create({
   manualButton: {
     marginTop: SPACING.sm,
     height:    56,
+    marginBottom: LAYOUT.bottomTabInset,
   },
 });

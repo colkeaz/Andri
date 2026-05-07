@@ -1,3 +1,5 @@
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "expo-router";
 import {
   AlertCircle,
@@ -9,11 +11,8 @@ import {
   Search,
   Trash2,
 } from "lucide-react-native";
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as Haptics from 'expo-haptics';
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   KeyboardAvoidingView,
@@ -21,20 +20,25 @@ import {
   Platform,
   Pressable,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import {
+  AppHeader,
+  AppScreen,
+  EmptyState,
+  LoadingState,
+  MetricTile,
+  PremiumCard,
+  StatusPill,
+} from "../components/ui";
 import { dbService } from "../database/db";
 import { getAggregatedInventory } from "../logic/inventoryHelper";
-import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { COLORS, LAYOUT, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
 
 type InventoryItem = {
   id: string;
@@ -55,88 +59,71 @@ type EditForm = {
   minStock: string;
 };
 
-// ─── Fallback demo data ────────────────────────────────────────────────────────
-
-const FALLBACK_INVENTORY: InventoryItem[] = [
-  { id: "1", name: "Coke 1.5L",        quantity: 12,  min_stock: 5,  sellingPrice: 65,   costPrice: 54  },
-  { id: "2", name: "Lucky Me Noodles",  quantity: 2,   min_stock: 10, sellingPrice: 18.5, costPrice: 14  },
-  { id: "3", name: "Bear Brand 320g",   quantity: 45,  min_stock: 10, sellingPrice: 102,  costPrice: 88  },
-  { id: "4", name: "Egg (Large)",        quantity: 120, min_stock: 50, sellingPrice: 8,    costPrice: 6.5 },
-];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+function money(value: number) {
+  return `PHP ${value.toFixed(2)}`;
+}
 
 function safeNum(val: string): number | undefined {
   const n = parseFloat(val);
-  return isNaN(n) ? undefined : n;
+  return Number.isNaN(n) ? undefined : n;
 }
 
 function safeInt(val: string): number | undefined {
   const n = parseInt(val, 10);
-  return isNaN(n) ? undefined : n;
+  return Number.isNaN(n) ? undefined : n;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export const InventoryScreen: React.FC = () => {
-  const [inventory,      setInventory]      = useState<InventoryItem[]>([]);
-  const [isLoading,      setIsLoading]      = useState(true);
-  const [isRefreshing,   setIsRefreshing]   = useState(false);
-  const [isUsingFallback, setIsUsingFallback] = useState(false);
-  const [isSaving,       setIsSaving]       = useState(false);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Edit sheet state
   const [editTarget, setEditTarget] = useState<InventoryItem | null>(null);
-  const [form,       setForm]       = useState<EditForm>({
-    name:         "",
-    barcode:      "",
-    quantity:     "",
+  const [form, setForm] = useState<EditForm>({
+    name: "",
+    barcode: "",
+    quantity: "",
     sellingPrice: "",
-    costPrice:    "",
-    minStock:     "",
+    costPrice: "",
+    minStock: "",
   });
 
-  // ── Data loading ────────────────────────────────────────────────────────────
-
   const loadInventory = useCallback(async () => {
-    try {
-      const products = await getAggregatedInventory();
-      if (!Array.isArray(products) || products.length === 0) {
-        setInventory(FALLBACK_INVENTORY);
-        setIsUsingFallback(true);
-        return;
-      }
-      setInventory(
-        products.map((p) => ({
-          id:           p.id,
-          name:         p.name,
-          barcode:      p.barcode,
-          quantity:     p.totalStock,
-          min_stock:    p.minStockLevel,
-          sellingPrice: p.sellingPrice,
-          costPrice:    p.costPrice,
-        })),
-      );
-      setIsUsingFallback(false);
-    } catch {
-      setInventory(FALLBACK_INVENTORY);
-      setIsUsingFallback(true);
-    }
+    const products = await getAggregatedInventory();
+    setInventory(
+      products.map((p) => ({
+        id: p.id,
+        name: p.name,
+        barcode: p.barcode,
+        quantity: p.totalStock,
+        min_stock: p.minStockLevel,
+        sellingPrice: p.sellingPrice,
+        costPrice: p.costPrice,
+      })),
+    );
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
       const run = async () => {
-        await loadInventory();
-        if (active) setIsLoading(false);
+        try {
+          await loadInventory();
+        } catch (error) {
+          setInventory([]);
+          Alert.alert("Inventory Unavailable", error instanceof Error ? error.message : "Could not load inventory.");
+        } finally {
+          if (active) setIsLoading(false);
+        }
       };
       run();
-      return () => { active = false; };
+      return () => {
+        active = false;
+      };
     }, [loadInventory]),
   );
 
@@ -146,22 +133,16 @@ export const InventoryScreen: React.FC = () => {
     setIsRefreshing(false);
   };
 
-  // ── Edit sheet ──────────────────────────────────────────────────────────────
-
   const openEdit = (item: InventoryItem) => {
     setForm({
-      name:         item.name,
-      barcode:      item.barcode ?? "",
-      quantity:     String(item.quantity),
+      name: item.name,
+      barcode: item.barcode ?? "",
+      quantity: String(item.quantity),
       sellingPrice: String(item.sellingPrice),
-      costPrice:    String(item.costPrice),
-      minStock:     String(item.min_stock),
+      costPrice: String(item.costPrice),
+      minStock: String(item.min_stock),
     });
     setEditTarget(item);
-  };
-
-  const closeEdit = () => {
-    setEditTarget(null);
   };
 
   const handleBarCodeScanned = ({ data }: { data: string }) => {
@@ -177,7 +158,7 @@ export const InventoryScreen: React.FC = () => {
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
-        Alert.alert('Permission Required', 'Camera permission is needed to scan barcodes.');
+        Alert.alert("Permission Required", "Camera permission is needed to scan barcodes.");
         return;
       }
     }
@@ -186,7 +167,6 @@ export const InventoryScreen: React.FC = () => {
 
   const handleSave = async () => {
     if (!editTarget) return;
-
     const name = form.name.trim();
     if (!name) {
       Alert.alert("Validation", "Product name cannot be empty.");
@@ -195,21 +175,17 @@ export const InventoryScreen: React.FC = () => {
 
     setIsSaving(true);
     try {
-      // Update product row
       await dbService.updateProduct(editTarget.id, {
         name,
-        barcode:       form.barcode.trim() || null,
+        barcode: form.barcode.trim() || null,
         minStockLevel: safeInt(form.minStock) ?? editTarget.min_stock,
       });
-
-      // Update inventory prices / quantity
       await dbService.updateInventoryPrices(editTarget.id, {
-        quantity:     safeInt(form.quantity),
+        quantity: safeInt(form.quantity),
         sellingPrice: safeNum(form.sellingPrice),
-        costPrice:    safeNum(form.costPrice),
+        costPrice: safeNum(form.costPrice),
       });
-
-      closeEdit();
+      setEditTarget(null);
       await loadInventory();
     } catch (err) {
       Alert.alert("Save Failed", err instanceof Error ? err.message : "Could not save changes.");
@@ -218,751 +194,492 @@ export const InventoryScreen: React.FC = () => {
     }
   };
 
-  // ── Delete ──────────────────────────────────────────────────────────────────
-
   const confirmDelete = (item: InventoryItem) => {
     const doDelete = async () => {
       try {
-        if (isUsingFallback) {
-          setInventory((prev) => prev.filter((i) => i.id !== item.id));
-        } else {
-          await dbService.deleteProduct(item.id);
-          await loadInventory();
-        }
+        await dbService.deleteProduct(item.id);
+        await loadInventory();
       } catch (err) {
         Alert.alert("Delete Failed", err instanceof Error ? err.message : "Could not delete product.");
       }
     };
 
-    if (Platform.OS === 'web') {
-      const confirmed = window.confirm(`I-remove ang "${item.name}" at lahat ng stock records nito? Hindi na ito maibabalik.`);
-      if (confirmed) {
-        doDelete();
-      }
+    if (Platform.OS === "web") {
+      if (window.confirm(`Remove "${item.name}" and all stock records?`)) doDelete();
       return;
     }
 
-    Alert.alert(
-      "Delete Product",
-      `Remove "${item.name}" and all its stock records? This cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: doDelete,
-        },
-      ],
-    );
+    Alert.alert("Delete Product", `Remove "${item.name}" and all stock records?`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: doDelete },
+    ]);
   };
 
-  // ── Derived ─────────────────────────────────────────────────────────────────
-
   const filteredInventory = searchQuery.trim()
-    ? inventory.filter((i) =>
-        i.name.toLowerCase().includes(searchQuery.trim().toLowerCase()),
-      )
+    ? inventory.filter((i) => i.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
     : inventory;
-
   const lowStockCount = inventory.filter((i) => i.quantity <= i.min_stock).length;
-
-  // ── Render helpers ───────────────────────────────────────────────────────────
+  const stockedPct = inventory.length > 0
+    ? Math.round(((inventory.length - lowStockCount) / inventory.length) * 100)
+    : 100;
 
   const renderItem = ({ item }: { item: InventoryItem }) => {
     const isLow = item.quantity <= item.min_stock;
-    const pct   = Math.min(1, item.quantity / Math.max(1, item.min_stock * 2));
+    const pct = Math.min(1, item.quantity / Math.max(1, item.min_stock * 2));
 
     return (
-      <View style={[styles.card, isLow && styles.cardLow]}>
-        {/* Main info area */}
-        <TouchableOpacity
-          activeOpacity={0.82}
-          style={styles.cardLeft}
-          onPress={() => openEdit(item)}
-        >
-          <Text style={styles.itemName}>{item.name}</Text>
+      <PremiumCard style={[styles.productCard, isLow && styles.productCardLow]}>
+        <Pressable style={styles.productMain} onPress={() => openEdit(item)}>
+          <View style={styles.productTop}>
+            <View style={styles.productIcon}>
+              <Package color={isLow ? COLORS.danger : COLORS.primary} size={20} />
+            </View>
+            <View style={styles.productText}>
+              <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
+              <Text style={styles.itemMeta}>{item.quantity} in stock · Min {item.min_stock}</Text>
+            </View>
+            <StatusPill
+              label={isLow ? "Low" : "OK"}
+              tone={isLow ? "danger" : "success"}
+              icon={isLow ? <AlertCircle color={COLORS.danger} size={12} /> : undefined}
+            />
+          </View>
 
           <View style={styles.progressBar}>
             <View
               style={[
                 styles.progressFill,
                 {
-                  width:           `${Math.round(pct * 100)}%` as any,
+                  width: `${Math.round(pct * 100)}%` as any,
                   backgroundColor: isLow ? COLORS.danger : COLORS.success,
                 },
               ]}
             />
           </View>
 
-          <Text style={styles.itemMeta}>
-            {item.quantity} in stock · Min {item.min_stock}
-          </Text>
-
-          {item.sellingPrice > 0 && (
-            <Text style={styles.priceTag}>₱{item.sellingPrice.toFixed(2)}</Text>
-          )}
-        </TouchableOpacity>
-
-        {/* Actions column */}
-        <View style={styles.cardActions}>
-          <View style={[styles.stockBadge, { backgroundColor: isLow ? COLORS.danger : COLORS.success }]}>
-            {isLow && <AlertCircle color={COLORS.white} size={12} />}
-            <Text style={styles.stockBadgeText}>{isLow ? "LOW" : "OK"}</Text>
+          <View style={styles.productBottom}>
+            <Text style={styles.priceTag}>{money(item.sellingPrice)}</Text>
+            {item.barcode ? <Text style={styles.barcodeText}>#{item.barcode}</Text> : null}
           </View>
+        </Pressable>
 
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => openEdit(item)}
-            hitSlop={8}
-          >
+        <View style={styles.cardActions}>
+          <TouchableOpacity style={styles.iconButton} onPress={() => openEdit(item)} hitSlop={8}>
             <Edit3 color={COLORS.primary} size={18} />
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => confirmDelete(item)}
-            hitSlop={8}
-          >
+          <TouchableOpacity style={styles.iconButton} onPress={() => confirmDelete(item)} hitSlop={8}>
             <Trash2 color={COLORS.danger} size={18} />
           </TouchableOpacity>
         </View>
-      </View>
+      </PremiumCard>
     );
   };
 
-  // ── Render ──────────────────────────────────────────────────────────────────
-
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
-
-      {/* Metric strip */}
-      <View style={styles.metricsRow}>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricValue}>{inventory.length}</Text>
-          <Text style={styles.metricLabel}>Total Items</Text>
-        </View>
-        <View style={[styles.metricCard, lowStockCount > 0 && styles.metricCardAlert]}>
-          <Text style={[styles.metricValue, lowStockCount > 0 && { color: COLORS.danger }]}>
-            {lowStockCount}
-          </Text>
-          <Text style={styles.metricLabel}>Low Stock</Text>
-        </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricValue}>
-            {inventory.length > 0
-              ? `${Math.round(((inventory.length - lowStockCount) / inventory.length) * 100)}%`
-              : "—"}
-          </Text>
-          <Text style={styles.metricLabel}>Stocked</Text>
-        </View>
-      </View>
-
-      {isUsingFallback && (
-        <View style={styles.demoBar}>
-          <Text style={styles.demoBarText}>
-            📦 Demo data shown — add real items in the Add tab
-          </Text>
-        </View>
-      )}
-
-      {/* Search bar */}
-      <View style={styles.searchRow}>
-        <Search color={COLORS.textSecondary} size={20} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search inventory..."
-          placeholderTextColor={COLORS.textSecondary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          returnKeyType="search"
-          clearButtonMode="while-editing"
+    <AppScreen scroll={false}>
+      <View style={styles.inner}>
+        <AppHeader
+          eyebrow="Inventory"
+          title="Stock Room"
+          subtitle="Search, edit, and protect your shop inventory."
+          right={<StatusPill label={`${stockedPct}% stocked`} tone={stockedPct >= 70 ? "success" : "warning"} />}
         />
-        {searchQuery.length > 0 && (
-          <Pressable onPress={() => setSearchQuery("")} hitSlop={10}>
-            <CircleX color={COLORS.textSecondary} size={20} />
-          </Pressable>
+
+        <View style={styles.metricsRow}>
+          <MetricTile label="Items" value={inventory.length} caption="Tracked" tone="primary" />
+          <MetricTile label="Low" value={lowStockCount} caption="Need action" tone={lowStockCount > 0 ? "danger" : "success"} />
+          <MetricTile label="Stocked" value={`${stockedPct}%`} caption="Healthy" tone={stockedPct >= 70 ? "success" : "warning"} />
+        </View>
+
+        <View style={styles.searchRow}>
+          <Search color={COLORS.textSecondary} size={20} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search inventory..."
+            placeholderTextColor={COLORS.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+          {searchQuery.length > 0 ? (
+            <Pressable onPress={() => setSearchQuery("")} hitSlop={10}>
+              <CircleX color={COLORS.textSecondary} size={20} />
+            </Pressable>
+          ) : null}
+        </View>
+
+        {isLoading ? (
+          <LoadingState label="Loading inventory..." />
+        ) : (
+          <FlatList
+            data={filteredInventory}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.list}
+            refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <EmptyState
+                title={searchQuery.trim() ? "No matching items" : "Your shop is empty"}
+                message={searchQuery.trim() ? "Try another product name or clear the search." : "Add your first product from the Add Stock tab."}
+                icon={<Boxes color={COLORS.primary} size={30} />}
+              />
+            }
+          />
         )}
       </View>
 
-      {isLoading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Loading inventory…</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredInventory}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={onRefresh}
-              tintColor={COLORS.primary}
-            />
-          }
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Boxes color={COLORS.textSecondary} size={48} />
-              <Text style={styles.emptyTitle}>Your shop is empty</Text>
-              <Text style={styles.emptySubtitle}>
-                Let's add your first product! Head to the Add tab to get started.
-              </Text>
-            </View>
-          }
-        />
-      )}
-
-      {/* ── Edit Sheet ── */}
-      <Modal
-        animationType="slide"
-        transparent
-        visible={!!editTarget}
-        onRequestClose={closeEdit}
-      >
-        <KeyboardAvoidingView
-          style={styles.modalBackdrop}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
+      <Modal animationType="slide" transparent visible={!!editTarget} onRequestClose={() => setEditTarget(null)}>
+        <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <View style={styles.modalCard}>
             <View style={styles.modalHandle} />
-
-            {/* Header */}
             <View style={styles.modalHeader}>
               <View style={styles.modalIconWrap}>
                 <Package color={COLORS.primary} size={20} />
               </View>
-              <Text style={[TYPOGRAPHY.h2, { flex: 1, marginLeft: 10 }]}>
-                Edit Product
-              </Text>
-             
+              <View style={styles.modalHeaderText}>
+                <Text style={styles.modalTitle}>Edit Product</Text>
+                <Text style={styles.modalSubtitle}>Changes update all live views.</Text>
+              </View>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Product name */}
               <Field label="Product Name">
-                <TextInput
-                  style={styles.input}
-                  value={form.name}
-                  onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
-                  placeholder="e.g. Coke 1.5L"
-                  placeholderTextColor={COLORS.textSecondary}
-                  returnKeyType="next"
-                />
+                <TextInput style={styles.input} value={form.name} onChangeText={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="e.g. Coke 1.5L" placeholderTextColor={COLORS.textSecondary} />
               </Field>
 
-              {/* Barcode */}
-              <Field label="Barcode (optional)">
+              <Field label="Barcode">
                 <View style={styles.barcodeInputRow}>
-                  <TextInput
-                    style={[styles.input, { flex: 1 }]}
-                    value={form.barcode}
-                    onChangeText={(v) => setForm((f) => ({ ...f, barcode: v }))}
-                    placeholder="e.g. 4800016642158"
-                    placeholderTextColor={COLORS.textSecondary}
-                    keyboardType="number-pad"
-                    returnKeyType="next"
-                  />
-                  <TouchableOpacity 
-                    style={styles.inlineScanBtn}
-                    onPress={startScanning}
-                  >
+                  <TextInput style={[styles.input, styles.inputFlex]} value={form.barcode} onChangeText={(v) => setForm((f) => ({ ...f, barcode: v }))} placeholder="Optional barcode" placeholderTextColor={COLORS.textSecondary} keyboardType="number-pad" />
+                  <TouchableOpacity style={styles.inlineScanBtn} onPress={startScanning}>
                     <Scan color={COLORS.white} size={20} />
                   </TouchableOpacity>
                 </View>
               </Field>
 
-              {/* Prices row */}
               <View style={styles.row}>
-                <View style={{ flex: 1, marginRight: SPACING.xs }}>
-                  <Field label="Selling Price (₱)">
-                    <TextInput
-                      style={styles.input}
-                      value={form.sellingPrice}
-                      onChangeText={(v) => setForm((f) => ({ ...f, sellingPrice: v }))}
-                      placeholder="0.00"
-                      placeholderTextColor={COLORS.textSecondary}
-                      keyboardType="decimal-pad"
-                      returnKeyType="next"
-                    />
-                  </Field>
-                </View>
-                <View style={{ flex: 1, marginLeft: SPACING.xs }}>
-                  <Field label="Cost Price (₱)">
-                    <TextInput
-                      style={styles.input}
-                      value={form.costPrice}
-                      onChangeText={(v) => setForm((f) => ({ ...f, costPrice: v }))}
-                      placeholder="0.00"
-                      placeholderTextColor={COLORS.textSecondary}
-                      keyboardType="decimal-pad"
-                      returnKeyType="next"
-                    />
-                  </Field>
-                </View>
+                <Field label="Selling Price" style={styles.rowField}>
+                  <TextInput style={styles.input} value={form.sellingPrice} onChangeText={(v) => setForm((f) => ({ ...f, sellingPrice: v }))} placeholder="0.00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" />
+                </Field>
+                <Field label="Cost Price" style={styles.rowField}>
+                  <TextInput style={styles.input} value={form.costPrice} onChangeText={(v) => setForm((f) => ({ ...f, costPrice: v }))} placeholder="0.00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" />
+                </Field>
               </View>
 
-              {/* Stock row */}
               <View style={styles.row}>
-                <View style={{ flex: 1, marginRight: SPACING.xs }}>
-                  <Field label="Current Quantity">
-                    <TextInput
-                      style={styles.input}
-                      value={form.quantity}
-                      onChangeText={(v) => setForm((f) => ({ ...f, quantity: v }))}
-                      placeholder="0"
-                      placeholderTextColor={COLORS.textSecondary}
-                      keyboardType="number-pad"
-                      returnKeyType="next"
-                    />
-                  </Field>
-                </View>
-                <View style={{ flex: 1, marginLeft: SPACING.xs }}>
-                  <Field label="Min. Stock Level">
-                    <TextInput
-                      style={styles.input}
-                      value={form.minStock}
-                      onChangeText={(v) => setForm((f) => ({ ...f, minStock: v }))}
-                      placeholder="5"
-                      placeholderTextColor={COLORS.textSecondary}
-                      keyboardType="number-pad"
-                      returnKeyType="done"
-                    />
-                  </Field>
-                </View>
+                <Field label="Quantity" style={styles.rowField}>
+                  <TextInput style={styles.input} value={form.quantity} onChangeText={(v) => setForm((f) => ({ ...f, quantity: v }))} placeholder="0" placeholderTextColor={COLORS.textSecondary} keyboardType="number-pad" />
+                </Field>
+                <Field label="Min Stock" style={styles.rowField}>
+                  <TextInput style={styles.input} value={form.minStock} onChangeText={(v) => setForm((f) => ({ ...f, minStock: v }))} placeholder="5" placeholderTextColor={COLORS.textSecondary} keyboardType="number-pad" />
+                </Field>
               </View>
-
-              {/* Margin preview */}
-              {(() => {
-                const sell = safeNum(form.sellingPrice) ?? 0;
-                const cost = safeNum(form.costPrice) ?? 0;
-                if (sell > 0 && cost > 0) {
-                  const margin = ((sell - cost) / sell) * 100;
-                  const color  = margin >= 12 ? COLORS.success : COLORS.warning;
-                  return (
-                    <View style={[styles.marginChip, { borderColor: color }]}>
-                      <Text style={[styles.marginChipText, { color }]}>
-                        Tubo: {margin.toFixed(1)}% {margin >= 12 ? "✅" : "⚠️ Mababa sa 12%"}
-                      </Text>
-                    </View>
-                  );
-                }
-                return null;
-              })()}
             </ScrollView>
 
-            {/* Action buttons */}
             <View style={styles.modalActions}>
-              <Pressable
-                style={({ pressed }) => [styles.btnSecondary, pressed && styles.pressed]}
-                onPress={closeEdit}
-              >
+              <Pressable style={({ pressed }) => [styles.btnSecondary, pressed && styles.pressed]} onPress={() => setEditTarget(null)}>
                 <Text style={styles.btnSecondaryText}>Cancel</Text>
               </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.btnPrimary, pressed && styles.pressed, isSaving && styles.btnDisabled]}
-                onPress={handleSave}
-                disabled={isSaving}
-              >
-                <Text style={styles.btnPrimaryText}>
-                  {isSaving ? "Saving..." : "Save Changes"}
-                </Text>
+              <Pressable style={({ pressed }) => [styles.btnPrimary, pressed && styles.pressed, isSaving && styles.disabled]} onPress={handleSave} disabled={isSaving}>
+                <Text style={styles.btnPrimaryText}>{isSaving ? "Saving..." : "Save Changes"}</Text>
               </Pressable>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Barcode Scanner Modal */}
       <Modal visible={showScanner} animationType="slide">
         <View style={styles.scannerContainer}>
           <CameraView
             style={StyleSheet.absoluteFill}
             onBarcodeScanned={isScanning ? undefined : handleBarCodeScanned}
-            barcodeScannerSettings={{
-              barcodeTypes: ["qr", "ean13", "ean8", "upc_a"],
-            }}
+            barcodeScannerSettings={{ barcodeTypes: ["qr", "ean13", "ean8", "upc_a"] }}
           />
           <View style={styles.scannerOverlay}>
             <View style={styles.scannerFrame} />
-            <Text style={styles.scannerHint}>I-align ang barcode sa loob ng frame</Text>
-            <TouchableOpacity 
-              style={styles.cancelScanBtn}
-              onPress={() => setShowScanner(false)}
-            >
-              <Text style={styles.cancelScanBtnText}>KANSELAHIN</Text>
+            <Text style={styles.scannerHint}>Align barcode inside the frame</Text>
+            <TouchableOpacity style={styles.cancelScanBtn} onPress={() => setShowScanner(false)}>
+              <Text style={styles.cancelScanBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </AppScreen>
   );
 };
 
-// ─── Field wrapper ─────────────────────────────────────────────────────────────
-
-const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <View style={styles.fieldWrap}>
+const Field: React.FC<{ label: string; children: React.ReactNode; style?: any }> = ({ label, children, style }) => (
+  <View style={[styles.fieldWrap, style]}>
     <Text style={styles.fieldLabel}>{label}</Text>
     {children}
   </View>
 );
 
-// ─── Styles ────────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  container: {
-    flex:            1,
-    backgroundColor: COLORS.background,
+  inner: {
+    flex: 1,
+    padding: SPACING.md,
+    paddingBottom: 0,
   },
-
-  // Metrics strip
   metricsRow: {
-    flexDirection:  "row",
-    gap:            SPACING.xs,
-    padding:        SPACING.md,
-    paddingBottom:  SPACING.sm,
+    flexDirection: "row",
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
-  metricCard: {
-    flex:            1,
-    backgroundColor: COLORS.surface,
-    borderRadius:    RADIUS.md,
-    padding:         SPACING.sm,
-    alignItems:      "center",
-    borderWidth:     1,
-    borderColor:     COLORS.overlay,
-    ...SHADOW.card,
-  },
-  metricCardAlert: {
-    borderColor:     "rgba(255,59,48,0.3)",
-    backgroundColor: "#FFF5F5",
-  },
-  metricValue: {
-    fontSize:   24,
-    fontWeight: "800",
-    color:      COLORS.textPrimary,
-    fontFamily: "Inter_700Bold",
-  },
-  metricLabel: {
-    ...TYPOGRAPHY.caption,
-    marginTop: 2,
-  },
-
-  // Demo hint
-  demoBar: {
-    marginHorizontal: SPACING.md,
-    marginBottom:     SPACING.xs,
-    backgroundColor:  "#FFF8E7",
-    borderRadius:     RADIUS.sm,
-    padding:          10,
-    borderWidth:      1,
-    borderColor:      "rgba(255,149,0,0.25)",
-  },
-  demoBarText: {
-    ...TYPOGRAPHY.caption,
-    color: "#865200",
-  },
-
-  // Search
   searchRow: {
-    flexDirection:     "row",
-    alignItems:        "center",
-    marginHorizontal:  SPACING.md,
-    marginBottom:      SPACING.xs,
-    backgroundColor:   COLORS.surface,
-    borderRadius:      RADIUS.md,
-    borderWidth:       1,
-    borderColor:       COLORS.overlay,
-    paddingHorizontal: SPACING.sm,
-    height:            52,
-    gap:               10,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.overlay,
+    paddingHorizontal: SPACING.md,
+    minHeight: 54,
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+    ...SHADOW.soft,
   },
   searchInput: {
-    flex:       1,
-    fontSize:   18,
-    color:      COLORS.textPrimary,
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.textPrimary,
     fontFamily: "Inter_400Regular",
     paddingVertical: 0,
   },
-
-  // Loading
-  loadingWrap: {
-    alignItems:     "center",
-    paddingVertical: SPACING.xl,
-    gap:            12,
-  },
-  loadingText: {
-    ...TYPOGRAPHY.body,
-  },
-
-  // List
   list: {
-    padding:      SPACING.md,
-    paddingTop:   SPACING.xs,
-    paddingBottom: SPACING.xl,
+    paddingTop: SPACING.xs,
+    paddingBottom: LAYOUT.bottomTabInset,
   },
-
-  // Card
-  card: {
-    backgroundColor: COLORS.background,
-    borderRadius:    RADIUS.lg,
-    padding:         SPACING.md,
-    marginBottom:    SPACING.xs,
-    flexDirection:   "row",
-    justifyContent:  "space-between",
-    alignItems:      "center",
-    borderWidth:     1,
-    borderColor:     COLORS.overlay,
-    ...SHADOW.card,
+  productCard: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
-  cardLow: {
-    borderColor:     "rgba(255,59,48,0.25)",
-    backgroundColor: "#FFFAFA",
+  productCardLow: {
+    borderColor: "#F4B7B7",
   },
-  cardLeft: {
-    flex:        1,
-    marginRight: SPACING.sm,
+  productMain: {
+    flex: 1,
+  },
+  productTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+  },
+  productIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  productText: {
+    flex: 1,
   },
   itemName: {
-    ...TYPOGRAPHY.bodyLarge,
-    fontSize:     16,
-    marginBottom: 8,
-  },
-  progressBar: {
-    height:          4,
-    backgroundColor: COLORS.overlay,
-    borderRadius:    999,
-    overflow:        "hidden",
-    marginBottom:    6,
-  },
-  progressFill: {
-    height:       4,
-    borderRadius: 999,
+    ...TYPOGRAPHY.bodyBold,
+    fontSize: 16,
   },
   itemMeta: {
     ...TYPOGRAPHY.caption,
+    marginTop: 3,
+  },
+  progressBar: {
+    height: 5,
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: RADIUS.pill,
+    overflow: "hidden",
+    marginTop: SPACING.md,
+  },
+  progressFill: {
+    height: 5,
+    borderRadius: RADIUS.pill,
+  },
+  productBottom: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: SPACING.sm,
+    gap: SPACING.sm,
   },
   priceTag: {
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.primary,
+  },
+  barcodeText: {
     ...TYPOGRAPHY.caption,
-    color:      COLORS.primary,
-    fontWeight: "700",
-    marginTop:  4,
+    flex: 1,
+    textAlign: "right",
   },
-
-  // Card actions column
   cardActions: {
+    gap: SPACING.xs,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surfaceMuted,
     alignItems: "center",
-    gap:        SPACING.xs,
+    justifyContent: "center",
   },
-  stockBadge: {
-    flexDirection:   "row",
-    alignItems:      "center",
-    paddingHorizontal: 10,
-    paddingVertical:   5,
-    borderRadius:    999,
-    gap:             4,
-  },
-  stockBadgeText: {
-    color:      COLORS.white,
-    fontSize:   11,
-    fontWeight: "800",
-  },
-  actionBtn: {
-    width:           48,
-    height:          48,
-    borderRadius:    RADIUS.md,
-    backgroundColor: COLORS.surface,
-    borderWidth:     1,
-    borderColor:     COLORS.overlay,
-    alignItems:      "center",
-    justifyContent:  "center",
-  },
-
-  // Empty state
-  emptyState: {
-    marginTop:         SPACING.xl,
-    alignItems:        "center",
-    paddingHorizontal: SPACING.lg,
-    gap:               SPACING.sm,
-  },
-  emptyTitle: {
-    ...TYPOGRAPHY.h2,
-    textAlign: "center",
-  },
-  emptySubtitle: {
-    ...TYPOGRAPHY.body,
-    textAlign:  "center",
-    lineHeight: 22,
-  },
-
-  // Edit modal
   modalBackdrop: {
-    flex:            1,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent:  "flex-end",
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.38)",
+    justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor:      COLORS.background,
-    borderTopLeftRadius:  RADIUS.xl,
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
-    padding:              SPACING.lg,
-    paddingBottom:        SPACING.xl,
-    maxHeight:            "90%",
+    padding: SPACING.lg,
+    paddingBottom: SPACING.xl,
+    maxHeight: "90%",
+    ...SHADOW.modal,
   },
   modalHandle: {
-    width:           40,
-    height:          4,
+    width: 44,
+    height: 4,
+    borderRadius: RADIUS.pill,
     backgroundColor: COLORS.overlay,
-    borderRadius:    999,
-    alignSelf:       "center",
-    marginBottom:    SPACING.md,
+    alignSelf: "center",
+    marginBottom: SPACING.lg,
   },
   modalHeader: {
-    flexDirection:  "row",
-    alignItems:     "center",
-    marginBottom:   SPACING.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
   },
   modalIconWrap: {
-    width:           40,
-    height:          40,
-    borderRadius:    RADIUS.sm,
-    backgroundColor: COLORS.surface,
-    alignItems:      "center",
-    justifyContent:  "center",
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
   },
-
-  // Form
-  row: {
-    flexDirection: "row",
+  modalHeaderText: {
+    flex: 1,
+  },
+  modalTitle: {
+    ...TYPOGRAPHY.h2,
+  },
+  modalSubtitle: {
+    ...TYPOGRAPHY.caption,
+    marginTop: 3,
   },
   fieldWrap: {
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.md,
   },
   fieldLabel: {
     ...TYPOGRAPHY.caption,
-    fontWeight:   "600",
-    marginBottom: 6,
-    color:        COLORS.textSecondary,
+    fontWeight: "800",
     textTransform: "uppercase",
-    letterSpacing: 0.4,
+    marginBottom: 7,
   },
   input: {
-    backgroundColor: COLORS.surface,
-    borderRadius:    RADIUS.md,
-    borderWidth:     1,
-    borderColor:     COLORS.overlay,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical:   12,
-    ...TYPOGRAPHY.body,
-    color:           COLORS.textPrimary,
-    fontSize:        16,
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.overlay,
+    paddingHorizontal: SPACING.md,
+    minHeight: 52,
+    fontSize: 16,
+    color: COLORS.textPrimary,
   },
-
-  // Margin chip
-  marginChip: {
-    borderWidth:    1,
-    borderRadius:   RADIUS.sm,
-    paddingVertical: 8,
-    paddingHorizontal: SPACING.sm,
-    marginBottom:   SPACING.sm,
-    alignItems:     "center",
-    backgroundColor: COLORS.surface,
+  inputFlex: {
+    flex: 1,
   },
-  marginChipText: {
-    ...TYPOGRAPHY.body,
-    fontWeight: "700",
-    fontSize:   14,
-  },
-
-  // Modal actions
-  modalActions: {
-    marginTop:     SPACING.md,
+  row: {
     flexDirection: "row",
-    gap:           SPACING.sm,
+    gap: SPACING.sm,
+  },
+  rowField: {
+    flex: 1,
+  },
+  barcodeInputRow: {
+    flexDirection: "row",
+    gap: SPACING.xs,
+  },
+  inlineScanBtn: {
+    width: 52,
+    height: 52,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+    marginTop: SPACING.sm,
   },
   btnSecondary: {
-    flex:            1,
-    borderWidth:     1,
-    borderColor:     COLORS.overlay,
-    borderRadius:    RADIUS.sm,
-    paddingVertical: 14,
-    alignItems:      "center",
-    backgroundColor: COLORS.surface,
+    flex: 1,
+    minHeight: 52,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surfaceMuted,
+    alignItems: "center",
+    justifyContent: "center",
   },
   btnSecondaryText: {
-    ...TYPOGRAPHY.body,
-    color:      COLORS.textPrimary,
-    fontWeight: "700",
+    ...TYPOGRAPHY.bodyBold,
   },
   btnPrimary: {
-    flex:            1,
+    flex: 1,
+    minHeight: 52,
+    borderRadius: RADIUS.md,
     backgroundColor: COLORS.primary,
-    borderRadius:    RADIUS.sm,
-    paddingVertical: 14,
-    alignItems:      "center",
+    alignItems: "center",
+    justifyContent: "center",
   },
   btnPrimaryText: {
-    ...TYPOGRAPHY.body,
-    color:      COLORS.white,
-    fontWeight: "700",
+    ...TYPOGRAPHY.buttonLabel,
   },
-  btnDisabled: {
+  disabled: {
     opacity: 0.6,
   },
   pressed: {
-    opacity: 0.8,
-  },
-  barcodeInputRow: {
-    flexDirection: 'row',
-    gap: SPACING.xs,
-    alignItems: 'center',
-  },
-  inlineScanBtn: {
-    width: 48,
-    height: 48,
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
+    opacity: 0.78,
   },
   scannerContainer: {
     flex: 1,
-    backgroundColor: 'black',
+    backgroundColor: COLORS.black,
   },
   scannerOverlay: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(2,6,23,0.55)",
   },
   scannerFrame: {
     width: 250,
     height: 250,
     borderWidth: 2,
     borderColor: COLORS.white,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: RADIUS.xl,
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
   scannerHint: {
-    color: COLORS.white,
-    marginTop: 20,
     ...TYPOGRAPHY.bodyBold,
+    color: COLORS.white,
+    marginTop: SPACING.lg,
   },
   cancelScanBtn: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 50,
-    paddingHorizontal: 40,
-    paddingVertical: 15,
-    borderRadius: RADIUS.md,
-    borderWidth: 2,
+    paddingHorizontal: SPACING.xl,
+    minHeight: 52,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
     borderColor: COLORS.white,
+    alignItems: "center",
+    justifyContent: "center",
   },
   cancelScanBtnText: {
     color: COLORS.white,
-    fontWeight: '800',
-    fontSize: 16,
-  }
+    fontWeight: "800",
+  },
 });

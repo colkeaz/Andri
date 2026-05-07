@@ -1,30 +1,28 @@
+import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
-  CircleX,
   Edit3,
-  Info,
+  PackageCheck,
   PackagePlus,
   PieChart,
   Receipt,
   ShoppingCart,
+  Sparkles,
   TrendingUp,
 } from "lucide-react-native";
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  Alert,
-  Modal,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import * as Haptics from "expo-haptics";
-
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { AlertCard } from "../components/AlertCard";
-import { BigButton } from "../components/BigButton";
+import {
+  ActionTile,
+  AppHeader,
+  AppScreen,
+  EmptyState,
+  MetricTile,
+  PremiumCard,
+  SectionHeader,
+  StatusPill,
+} from "../components/ui";
 import { dbService } from "../database/db";
 import { getAggregatedInventory } from "../logic/inventoryHelper";
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
@@ -45,15 +43,19 @@ type SaleRecord = {
   timestamp: string;
 };
 
+function money(value: number) {
+  return `PHP ${value.toFixed(2)}`;
+}
+
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
-  const mins  = Math.floor(diff / 60000);
+  const mins = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
-  const days  = Math.floor(diff / 86400000);
-  if (mins  < 1)   return "Just now";
-  if (mins  < 60)  return `${mins}m ago`;
-  if (hours < 24)  return `${hours}h ago`;
-  if (days  < 7)   return `${days}d ago`;
+  const days = Math.floor(diff / 86400000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
   return new Date(iso).toLocaleDateString();
 }
 
@@ -63,75 +65,64 @@ export const Dashboard: React.FC = () => {
   const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>([]);
   const [profitAlerts, setProfitAlerts] = useState<DashboardAlert[]>([]);
   const [salesHistory, setSalesHistory] = useState<SaleRecord[]>([]);
-  const [txLimit, setTxLimit]           = useState(5);
   const [storeHealth, setStoreHealth] = useState({
-    inventoryValue:  0,
-    lowStockCount:   0,
+    inventoryValue: 0,
+    lowStockCount: 0,
     totalStockItems: 0,
-    averageMargin:   0,
+    averageMargin: 0,
   });
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      const loadAlerts = async () => {
-        const [inventory, deadStockRows] = await Promise.all([
+      const loadDashboard = async () => {
+        const [inventory, deadStockRows, sales] = await Promise.all([
           getAggregatedInventory(),
-          dbService.getDeadStock()
+          dbService.getDeadStock(),
+          dbService.getSalesHistory(30),
         ]);
-        
+
         if (!active) return;
 
-        // 1. Margin Alerts (Price Hike/Profit Protection)
-        const marginAlerts: DashboardAlert[] = inventory
-          .map((item) => {
+        const marginAlerts = inventory
+          .map<DashboardAlert | null>((item) => {
             const margin =
               item.sellingPrice > 0
                 ? ((item.sellingPrice - item.costPrice) / item.sellingPrice) * 100
                 : 0;
-
             if (item.totalStock <= 0 || margin >= 12) return null;
-
             return {
-              id:          `margin-${item.id}`,
-              type:        "PRICE_HIKE" as const,
-              title:       `Low Margin: ${item.name}`,
-              message:     `Your profit is only ${margin.toFixed(1)}%. Increase price to ₱${(item.costPrice * 1.15).toFixed(2)} for a safe 15% margin.`,
+              id: `margin-${item.id}`,
+              type: "PRICE_HIKE" as const,
+              title: `Low Margin: ${item.name}`,
+              message: `Profit is ${margin.toFixed(1)}%. Raise price to ${money(item.costPrice / 0.85)} for a safer margin.`,
               actionLabel: "Fix Margin",
             };
           })
           .filter((item): item is DashboardAlert => item !== null);
 
-        // 2. Dead Stock Alerts (Inventory Liquidity)
-        const deadStockAlerts: DashboardAlert[] = deadStockRows.map(row => ({
+        const deadStockAlerts: DashboardAlert[] = deadStockRows.map((row) => ({
           id: `dead-${row.id}`,
-          type: "DEAD_STOCK" as const,
+          type: "DEAD_STOCK",
           title: `Dead Stock: ${row.name}`,
-          message: `${row.name} hasn't sold in 30+ days. Try a flash sale at ₱${(row.price * 0.9).toFixed(2)} to free up cash.`,
+          message: `${row.name} has not sold in 30+ days. Try a flash sale at ${money(row.price * 0.9)}.`,
           actionLabel: "Flash Sale",
         }));
 
-        // 3. Low Stock Alerts (Availability)
         const lowStockAlerts: DashboardAlert[] = inventory
-          .filter(item => item.totalStock > 0 && item.totalStock <= item.minStockLevel)
-          .map(item => ({
+          .filter((item) => item.totalStock > 0 && item.totalStock <= item.minStockLevel)
+          .map((item) => ({
             id: `low-${item.id}`,
-            type: "LOW_STOCK" as const,
+            type: "LOW_STOCK",
             title: `Low Stock: ${item.name}`,
             message: `Only ${item.totalStock} left. Restock soon to avoid losing sales.`,
             actionLabel: "Restock",
           }));
 
-        const computedAlerts = [...marginAlerts, ...deadStockAlerts, ...lowStockAlerts];
-
         const inventoryValue = inventory.reduce(
           (sum, item) => sum + item.totalStock * item.sellingPrice,
           0,
         );
-        const lowStockCount = inventory.filter(
-          (item) => item.totalStock <= item.minStockLevel,
-        ).length;
-        const totalStockItems = inventory.length;
         const averageMargin =
           inventory.length > 0
             ? inventory.reduce((sum, item) => {
@@ -143,16 +134,22 @@ export const Dashboard: React.FC = () => {
               }, 0) / inventory.length
             : 0;
 
-        setProfitAlerts(computedAlerts);
-        setStoreHealth({ inventoryValue, lowStockCount, totalStockItems, averageMargin });
-
-        // Load sales history in parallel
-        const sales = await dbService.getSalesHistory(30);
-        if (active) setSalesHistory(sales as SaleRecord[]);
+        setProfitAlerts([...marginAlerts, ...deadStockAlerts, ...lowStockAlerts]);
+        setStoreHealth({
+          inventoryValue,
+          lowStockCount: inventory.filter((item) => item.totalStock <= item.minStockLevel).length,
+          totalStockItems: inventory.length,
+          averageMargin,
+        });
+        setSalesHistory(sales as SaleRecord[]);
       };
 
-      loadAlerts();
-      return () => { active = false; };
+      loadDashboard().catch((error) => {
+        Alert.alert("Dashboard Unavailable", error instanceof Error ? error.message : "Could not load dashboard.");
+      });
+      return () => {
+        active = false;
+      };
     }, []),
   );
 
@@ -160,255 +157,133 @@ export const Dashboard: React.FC = () => {
     () => profitAlerts.filter((item) => !dismissedAlertIds.includes(item.id)),
     [dismissedAlertIds, profitAlerts],
   );
-
-  const selectedAlert = useMemo(
-    () => visibleAlerts.find((item) => item.id === selectedAlertId) || null,
-    [selectedAlertId, visibleAlerts],
-  );
+  const selectedAlert = visibleAlerts.find((item) => item.id === selectedAlertId) ?? null;
+  const stockHealthPct =
+    storeHealth.totalStockItems > 0
+      ? Math.round((1 - storeHealth.lowStockCount / storeHealth.totalStockItems) * 100)
+      : 100;
 
   const handleSuggestionAction = async () => {
     if (!selectedAlert) return;
-    
+
     if (selectedAlert.type === "PRICE_HIKE") {
-      // Actually update the selling price in the database
       const productId = selectedAlert.id.replace("margin-", "");
       const inventory = await getAggregatedInventory();
-      const product = inventory.find(p => p.id === productId);
+      const product = inventory.find((p) => p.id === productId);
       if (product) {
-        const newPrice = Number((product.costPrice * 1.15).toFixed(2));
-        await dbService.updateInventoryPrices(productId, { sellingPrice: newPrice });
+        await dbService.updateInventoryPrices(productId, {
+          sellingPrice: Number((product.costPrice / 0.85).toFixed(2)),
+        });
       }
-      Alert.alert("Profit Guard™ Applied", "The selling price has been adjusted to maintain your 15% margin.");
+      Alert.alert("Profit Guard Applied", "The selling price was adjusted.");
     } else if (selectedAlert.type === "DEAD_STOCK") {
-      Alert.alert("Clearance Tagged", "This item is now marked for flash sale.");
+      const productId = selectedAlert.id.replace("dead-", "");
+      const inventory = await getAggregatedInventory();
+      const product = inventory.find((p) => p.id === productId);
+      if (product) {
+        await dbService.updateInventoryPrices(productId, {
+          sellingPrice: Number((product.sellingPrice * 0.9).toFixed(2)),
+        });
+      }
+      Alert.alert("Clearance Applied", "This item was marked down for a flash sale.");
     } else {
-      // Navigate to intake for restocking
       router.push("/intake?mode=manual&source=dashboard");
       Alert.alert("Restock Reminder", "Add new stock for this item.");
     }
+
     setDismissedAlertIds((prev) => [...prev, selectedAlert.id]);
     setSelectedAlertId(null);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  };
-
-  const stockHealthPct =
-    storeHealth.totalStockItems > 0
-      ? (1 - storeHealth.lowStockCount / storeHealth.totalStockItems) * 100
-      : 100;
-  const profitHealthPct = Math.min(100, Math.max(0, (storeHealth.averageMargin / 12) * 100));
-
-  // ── Mini donut ring ────────────────────────────────────────────
-  const ProgressRing = ({
-    label,
-    value,
-    color = COLORS.primary,
-  }: {
-    percent: number;
-    label: string;
-    value: string;
-    color?: string;
-  }) => {
-    return (
-      <View style={styles.ringCard}>
-        <Text style={[styles.ringValue, { color, fontSize: 32 }]}>{value}</Text>
-        <Text style={styles.ringLabel}>{label}</Text>
-      </View>
-    );
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <AppScreen>
+      <AppHeader
+        eyebrow="Stocker"
+        title="Nanay's Store"
+        subtitle="Keep margins protected, shelves stocked, and sales moving today."
+        right={<StatusPill label={`${stockHealthPct}% stocked`} tone={stockHealthPct >= 70 ? "success" : "warning"} />}
+      />
 
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <Text style={styles.headerEyebrow}>Stocker</Text>
-          <Text style={TYPOGRAPHY.h1}>{"Nanay's Store 🏪"}</Text>
-          <Text style={styles.headerSubtitle}>
-            Keep your margins protected and stock moving today.
-          </Text>
-        </View>
+      <View style={styles.actionGrid}>
+        <ActionTile title="Incoming Stock" subtitle="Add or restock items" icon={PackagePlus} tone="primary" onPress={() => router.push("/intake")} />
+        <ActionTile title="Sell Items" subtitle="Open mobile POS" icon={ShoppingCart} tone="success" onPress={() => router.push("/pos")} />
+        <ActionTile title="Scan Receipt" subtitle="OCR purchase or sale" icon={Receipt} tone="warning" onPress={() => router.push("/intake?mode=receipt&source=dashboard")} />
+        <ActionTile title="Manual Add" subtitle="Fast non-camera entry" icon={Edit3} tone="neutral" onPress={() => router.push("/intake?mode=manual&source=dashboard")} />
+      </View>
 
-        {/* ── Quick Actions ── */}
-        <Text style={styles.sectionLabel}>Quick Actions</Text>
-        <View style={styles.actionSection}>
-          <View style={styles.actionRow}>
-            <BigButton
-              title="Incoming Stock"
-              color={COLORS.primary}
-              onPress={() => router.push("/intake")}
-              style={[styles.mainButton, { flex: 1 }]}
-              icon={<PackagePlus color={COLORS.white} size={24} />}
-            />
-            <BigButton
-              title="Scan Receipt"
-              color={COLORS.secondary}
-              onPress={() => router.push("/intake?mode=receipt&source=dashboard")}
-              style={[styles.mainButton, { flex: 1 }]}
-              icon={<Receipt color={COLORS.primary} size={24} />}
-            />
-          </View>
-          <BigButton
-            title="Sell Items"
-            color={COLORS.success}
-            onPress={() => router.push("/pos")}
-            style={styles.mainButton}
-            icon={<ShoppingCart color={COLORS.white} size={24} />}
+      <SectionHeader title="Store Health" subtitle="Live from local inventory" />
+      <View style={styles.metricsRow}>
+        <MetricTile
+          label="Inventory Value"
+          value={money(storeHealth.inventoryValue)}
+          caption={`${storeHealth.totalStockItems} product${storeHealth.totalStockItems === 1 ? "" : "s"} tracked`}
+          tone="primary"
+          icon={<PieChart color={COLORS.primary} size={16} />}
+          style={styles.wideMetric}
+        />
+      </View>
+      <View style={styles.metricsRow}>
+        <MetricTile label="Stock Health" value={`${stockHealthPct}%`} caption={`${storeHealth.lowStockCount} low-stock item${storeHealth.lowStockCount === 1 ? "" : "s"}`} tone={stockHealthPct >= 70 ? "success" : "warning"} />
+        <MetricTile label="Margin" value={`${storeHealth.averageMargin.toFixed(1)}%`} caption="Average profit" tone={storeHealth.averageMargin >= 12 ? "success" : "warning"} />
+      </View>
+
+      <SectionHeader title="Smart Suggestions" subtitle="Profit Guard and stock alerts" count={visibleAlerts.length} />
+      {visibleAlerts.length > 0 ? (
+        visibleAlerts.map((alert) => (
+          <AlertCard
+            key={alert.id}
+            type={alert.type}
+            title={alert.title}
+            message={alert.message}
+            actionLabel={alert.actionLabel}
+            onAction={() => setSelectedAlertId(alert.id)}
           />
-          <BigButton
-            title="Manual Add"
-            variant="outlined"
-            color={COLORS.primary}
-            onPress={() => router.push("/intake?mode=manual&source=dashboard")}
-            style={styles.smallButton}
-            icon={<Edit3 color={COLORS.primary} size={22} />}
-          />
-        </View>
-
-        {/* ── Bento Grid ── */}
-        <Text style={styles.sectionLabel}>Store Health</Text>
-        <View style={styles.bentoGrid}>
-          {/* Inventory value — full-width card */}
-          <View style={styles.bentoMain}>
-            <View style={styles.bentoHeader}>
-              <Text style={styles.bentoLabel}>Inventory Value</Text>
-              <PieChart color={COLORS.primary} size={16} />
+        ))
+      ) : (
+        <PremiumCard>
+          <View style={styles.goodNews}>
+            <Sparkles color={COLORS.success} size={24} />
+            <View style={styles.goodNewsText}>
+              <Text style={styles.goodNewsTitle}>Everything looks steady</Text>
+              <Text style={styles.goodNewsBody}>No urgent stock or profit suggestions right now.</Text>
             </View>
-            <Text style={styles.bentoValue}>
-              ₱{Math.round(storeHealth.inventoryValue).toLocaleString()}
-            </Text>
-            <Text style={styles.bentoCaption}>
-              {storeHealth.totalStockItems} product{storeHealth.totalStockItems !== 1 ? "s" : ""} tracked
-            </Text>
           </View>
+        </PremiumCard>
+      )}
 
-          {/* Progress rings row */}
-          <View style={styles.bentoRow}>
-            <ProgressRing
-              percent={stockHealthPct}
-              label="Stock Health"
-              value={`${Math.round(stockHealthPct)}%`}
-              color={stockHealthPct >= 70 ? COLORS.success : COLORS.warning}
-            />
-            <ProgressRing
-              percent={profitHealthPct}
-              label="Profit Health"
-              value={`${storeHealth.averageMargin.toFixed(1)}%`}
-              color={profitHealthPct >= 70 ? COLORS.success : COLORS.warning}
-            />
-          </View>
-        </View>
+      <Pressable style={({ pressed }) => [styles.stockLink, pressed && styles.pressed]} onPress={() => router.push("/inventory")}>
+        <PackageCheck color={COLORS.primary} size={19} />
+        <Text style={styles.stockLinkText}>View full inventory</Text>
+      </Pressable>
 
-        {/* ── Smart Alerts ── */}
-        <View style={styles.sectionRow}>
-          <TrendingUp color={COLORS.primary} size={20} />
-          <Text style={[styles.sectionLabel, { marginLeft: 6, marginBottom: 0 }]}>
-            Smart Suggestions
-          </Text>
-          {visibleAlerts.length > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{visibleAlerts.length}</Text>
+      <SectionHeader title="Recent Transactions" subtitle="Latest sales activity" count={salesHistory.length} />
+      {salesHistory.length === 0 ? (
+        <EmptyState title="No sales yet" message="Finish a sale in POS and it will appear here." icon={<Receipt color={COLORS.primary} size={30} />} />
+      ) : (
+        salesHistory.slice(0, 6).map((sale) => (
+          <PremiumCard key={sale.id} style={styles.txCard}>
+            <View style={styles.txIcon}>
+              <Receipt color={COLORS.primary} size={18} />
             </View>
-          )}
-        </View>
-
-        <View style={styles.sectionCard}>
-          {visibleAlerts.length > 0 ? (
-            visibleAlerts.map((alert) => (
-              <AlertCard
-                key={alert.id}
-                type={alert.type}
-                title={alert.title}
-                message={alert.message}
-                actionLabel={alert.actionLabel}
-                onAction={() => setSelectedAlertId(alert.id)}
-              />
-            ))
-          ) : (
-            <View style={styles.emptyAlerts}>
-              <Info color={COLORS.success} size={20} />
-              <Text style={styles.emptyAlertsText}>
-                All good! No pending suggestions right now.
-              </Text>
+            <View style={styles.txInfo}>
+              <Text style={styles.txName} numberOfLines={1}>{sale.productName}</Text>
+              <Text style={styles.txMeta}>{sale.quantity} sold</Text>
             </View>
-          )}
-        </View>
-
-        <Pressable
-          style={({ pressed }) => [styles.viewStockBtn, pressed && styles.pressed]}
-          onPress={() => router.push("/inventory")}
-        >
-          <Text style={styles.viewStockBtnText}>View Full Stock →</Text>
-        </Pressable>
-
-        {/* ── Recent Transactions ── */}
-        <View style={styles.txSection}>
-          <View style={styles.txHeaderRow}>
-            <Receipt color={COLORS.primary} size={18} />
-            <Text style={[styles.sectionLabel, { marginLeft: 6, marginBottom: 0 }]}>
-              Recent Transactions
-            </Text>
-            {salesHistory.length > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{salesHistory.length}</Text>
-              </View>
-            )}
-          </View>
-
-          {salesHistory.length === 0 ? (
-            <View style={styles.txEmpty}>
-              <Text style={styles.txEmptyText}>Wala pang benta. Gumawa ng transaksyon sa Kaha.</Text>
+            <View style={styles.txRight}>
+              <Text style={styles.txAmount}>{money(sale.totalPrice)}</Text>
+              <Text style={styles.txTime}>{timeAgo(sale.timestamp)}</Text>
             </View>
-          ) : (
-            <>
-              {salesHistory.slice(0, txLimit).map((sale) => (
-                <View key={sale.id} style={styles.txCard}>
-                  <View style={styles.txLeft}>
-                    <Text style={styles.txName} numberOfLines={1}>{sale.productName}</Text>
-                    <Text style={styles.txMeta}>{sale.quantity} sold</Text>
-                  </View>
-                  <View style={styles.txRight}>
-                    <Text style={styles.txAmount}>₱{sale.totalPrice.toFixed(2)}</Text>
-                    <Text style={styles.txTime}>{timeAgo(sale.timestamp)}</Text>
-                  </View>
-                </View>
-              ))}
+          </PremiumCard>
+        ))
+      )}
 
-              {salesHistory.length > 5 && (
-                <Pressable
-                  style={({ pressed }) => [styles.txMoreBtn, pressed && { opacity: 0.7 }]}
-                  onPress={() => setTxLimit((prev) => prev > 5 ? 5 : salesHistory.length)}
-                >
-                  <Text style={styles.txMoreText}>
-                    {txLimit > 5
-                      ? "Show less ↑"
-                      : `Show ${salesHistory.length - 5} more ↓`}
-                  </Text>
-                </Pressable>
-              )}
-            </>
-          )}
-        </View>
-
-      </ScrollView>
-
-      {/* ── Suggestion Modal ── */}
-      <Modal
-        animationType="slide"
-        transparent
-        visible={!!selectedAlert}
-        onRequestClose={() => setSelectedAlertId(null)}
-      >
+      <Modal animationType="slide" transparent visible={!!selectedAlert} onRequestClose={() => setSelectedAlertId(null)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={TYPOGRAPHY.h2}>Suggestion Detail</Text>
-            </View>
             <Text style={styles.modalTitle}>{selectedAlert?.title}</Text>
             <Text style={styles.modalMessage}>{selectedAlert?.message}</Text>
-
             <View style={styles.modalActions}>
               <Pressable
                 style={({ pressed }) => [styles.modalSecondary, pressed && styles.pressed]}
@@ -419,309 +294,80 @@ export const Dashboard: React.FC = () => {
               >
                 <Text style={styles.modalSecondaryText}>Dismiss</Text>
               </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.modalPrimary, pressed && styles.pressed]}
-                onPress={handleSuggestionAction}
-              >
+              <Pressable style={({ pressed }) => [styles.modalPrimary, pressed && styles.pressed]} onPress={handleSuggestionAction}>
+                <TrendingUp color={COLORS.white} size={18} />
                 <Text style={styles.modalPrimaryText}>Apply</Text>
               </Pressable>
             </View>
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </AppScreen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  scrollContent: {
-    padding:      SPACING.md,
-    paddingBottom: SPACING.xl,
-  },
-
-  // Header
-  header: {
-    marginBottom: SPACING.lg,
-  },
-  headerEyebrow: {
-    ...TYPOGRAPHY.caption,
-    fontWeight:    "600",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom:  4,
-    color:         COLORS.primary,
-  },
-  headerSubtitle: {
-    ...TYPOGRAPHY.body,
-    marginTop: 6,
-    lineHeight: 22,
-  },
-
-  // Labels
-  sectionLabel: {
-    ...TYPOGRAPHY.body,
-    fontWeight:    "700",
-    color:         COLORS.textPrimary,
-    marginBottom:  SPACING.sm,
-    fontSize:      14,
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-  },
-  sectionRow: {
-    flexDirection:  "row",
-    alignItems:     "center",
-    marginBottom:   SPACING.sm,
-  },
-  badge: {
-    marginLeft:      8,
-    backgroundColor: COLORS.primary,
-    borderRadius:    999,
-    paddingHorizontal: 8,
-    paddingVertical:   2,
-  },
-  badgeText: {
-    color:      COLORS.white,
-    fontSize:   12,
-    fontWeight: "700",
-  },
-
-  // Buttons
-  actionSection: {
-    marginBottom: SPACING.lg,
-    gap:          SPACING.sm,
-  },
-  actionRow: {
-    flexDirection: "row",
+  actionGrid: {
     gap: SPACING.sm,
   },
-  mainButton: {
-    height: 64,
-  },
-  smallButton: {
-    height: 54,
-  },
-
-  // Bento
-  bentoGrid: {
-    marginBottom: SPACING.lg,
-    gap:          SPACING.sm,
-  },
-  bentoMain: {
-    backgroundColor: COLORS.surface,
-    borderRadius:    RADIUS.xl,
-    borderWidth:     1,
-    borderColor:     COLORS.overlay,
-    padding:         SPACING.md,
-    ...SHADOW.card,
-  },
-  bentoHeader: {
-    flexDirection:  "row",
-    justifyContent: "space-between",
-    alignItems:     "center",
-    marginBottom:   6,
-  },
-  bentoLabel: {
-    ...TYPOGRAPHY.caption,
-    fontWeight: "600",
-  },
-  bentoValue: {
-    fontSize:      32,
-    fontWeight:    "800",
-    color:         COLORS.textPrimary,
-    fontFamily:    "Inter_700Bold",
-    letterSpacing: -0.5,
-  },
-  bentoCaption: {
-    ...TYPOGRAPHY.caption,
-    marginTop: 4,
-  },
-  bentoRow: {
+  metricsRow: {
     flexDirection: "row",
-    gap:           SPACING.sm,
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
-  ringCard: {
-    flex:            1,
-    backgroundColor: COLORS.surface,
-    borderRadius:    RADIUS.xl,
-    borderWidth:     1,
-    borderColor:     COLORS.overlay,
-    alignItems:      "center",
-    paddingVertical: SPACING.md,
-    gap:             8,
-    ...SHADOW.card,
+  wideMetric: {
+    minHeight: 118,
   },
-  ringCenter: {
-    alignItems:     "center",
+  goodNews: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+  },
+  goodNewsText: {
+    flex: 1,
+  },
+  goodNewsTitle: {
+    ...TYPOGRAPHY.bodyBold,
+  },
+  goodNewsBody: {
+    ...TYPOGRAPHY.caption,
+    marginTop: 3,
+  },
+  stockLink: {
+    marginTop: SPACING.md,
+    minHeight: 52,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primarySoft,
+    borderWidth: 1,
+    borderColor: "#BBD5FF",
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
+    gap: SPACING.xs,
   },
-  ringValue: {
-    fontSize:      16,
-    fontWeight:    "800",
-    fontFamily:    "Inter_700Bold",
-    letterSpacing: -0.3,
-  },
-  ringLabel: {
-    ...TYPOGRAPHY.caption,
-    fontWeight: "600",
-  },
-
-  // Alerts section
-  sectionCard: {
-    marginBottom: SPACING.md,
-  },
-  emptyAlerts: {
-    backgroundColor: "#F0FFF4",
-    borderRadius:    RADIUS.md,
-    padding:         SPACING.md,
-    flexDirection:   "row",
-    alignItems:      "center",
-    gap:             10,
-    borderWidth:     1,
-    borderColor:     "rgba(52,199,89,0.2)",
-  },
-  emptyAlertsText: {
-    ...TYPOGRAPHY.body,
-    flex:    1,
-    color:   COLORS.textPrimary,
-    fontSize: 14,
-  },
-
-  // View stock link
-  viewStockBtn: {
-    marginTop:     SPACING.sm,
-    borderRadius:  RADIUS.sm,
-    paddingVertical: 14,
-    alignItems:    "center",
-    borderWidth:   1,
-    borderColor:   COLORS.overlay,
-    backgroundColor: COLORS.surface,
-  },
-  viewStockBtnText: {
-    ...TYPOGRAPHY.body,
-    color:      COLORS.primary,
-    fontWeight: "700",
-    fontSize:   15,
-  },
-
-  // Modal
-  modalBackdrop: {
-    flex:             1,
-    backgroundColor:  "rgba(0,0,0,0.25)",
-    justifyContent:   "flex-end",
-  },
-  modalCard: {
-    backgroundColor:     COLORS.background,
-    borderTopLeftRadius: RADIUS.xl,
-    borderTopRightRadius: RADIUS.xl,
-    padding:      SPACING.lg,
-    paddingBottom: SPACING.xl,
-    ...SHADOW.modal,
-  },
-  modalHandle: {
-    width:           40,
-    height:          4,
-    backgroundColor: COLORS.overlay,
-    borderRadius:    999,
-    alignSelf:       "center",
-    marginBottom:    SPACING.md,
-  },
-  modalHeader: {
-    flexDirection:  "row",
-    justifyContent: "space-between",
-    alignItems:     "center",
-    marginBottom:   SPACING.sm,
-  },
-  modalTitle: {
-    ...TYPOGRAPHY.bodyLarge,
-    marginBottom: SPACING.xs,
-  },
-  modalMessage: {
-    ...TYPOGRAPHY.body,
-    lineHeight: 22,
-  },
-  modalActions: {
-    marginTop:     SPACING.lg,
-    flexDirection: "row",
-    gap:           SPACING.sm,
-  },
-  modalSecondary: {
-    flex:            1,
-    borderWidth:     1,
-    borderColor:     COLORS.overlay,
-    borderRadius:    RADIUS.sm,
-    paddingVertical: 14,
-    alignItems:      "center",
-    backgroundColor: COLORS.surface,
-  },
-  modalSecondaryText: {
-    ...TYPOGRAPHY.body,
-    color:      COLORS.textPrimary,
-    fontWeight: "700",
-  },
-  modalPrimary: {
-    flex:            1,
-    backgroundColor: COLORS.primary,
-    borderRadius:    RADIUS.sm,
-    paddingVertical: 14,
-    alignItems:      "center",
-  },
-  modalPrimaryText: {
-    ...TYPOGRAPHY.body,
-    color:      COLORS.white,
-    fontWeight: "700",
-  },
-  pressed: {
-    opacity: 0.8,
-  },
-
-  // Transactions
-  txSection: {
-    marginTop: SPACING.lg,
-  },
-  txHeaderRow: {
-    flexDirection:  "row",
-    alignItems:     "center",
-    marginBottom:   SPACING.sm,
-  },
-  txEmpty: {
-    backgroundColor: COLORS.surface,
-    borderRadius:    RADIUS.md,
-    padding:         SPACING.md,
-    borderWidth:     1,
-    borderColor:     COLORS.overlay,
-    alignItems:      "center",
-  },
-  txEmptyText: {
-    ...TYPOGRAPHY.body,
-    color:     COLORS.textSecondary,
-    fontSize:  14,
-    textAlign: "center",
+  stockLinkText: {
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.primary,
   },
   txCard: {
-    flexDirection:   "row",
-    alignItems:      "center",
-    backgroundColor: COLORS.surface,
-    borderRadius:    RADIUS.md,
-    borderWidth:     1,
-    borderColor:     COLORS.overlay,
-    paddingVertical:   12,
-    paddingHorizontal: SPACING.md,
-    marginBottom:    SPACING.xs,
-    ...SHADOW.card,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
-  txLeft: {
+  txIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  txInfo: {
     flex: 1,
-    marginRight: SPACING.sm,
   },
   txName: {
-    ...TYPOGRAPHY.body,
-    fontWeight: "700",
-    fontSize:   15,
-    color:      COLORS.textPrimary,
+    ...TYPOGRAPHY.bodyBold,
   },
   txMeta: {
     ...TYPOGRAPHY.caption,
@@ -731,29 +377,72 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   txAmount: {
-    fontSize:   17,
-    fontWeight: "800",
-    color:      COLORS.success,
-    fontFamily: "Inter_700Bold",
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.success,
   },
   txTime: {
     ...TYPOGRAPHY.caption,
-    marginTop: 3,
-    color:     COLORS.textSecondary,
+    marginTop: 2,
   },
-  txMoreBtn: {
-    marginTop:       SPACING.xs,
-    paddingVertical: 10,
-    borderRadius:    RADIUS.sm,
-    borderWidth:     1,
-    borderColor:     COLORS.overlay,
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.36)",
+    justifyContent: "flex-end",
+  },
+  modalCard: {
     backgroundColor: COLORS.surface,
-    alignItems:      "center",
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
+    padding: SPACING.lg,
+    paddingBottom: SPACING.xl,
+    ...SHADOW.modal,
   },
-  txMoreText: {
+  modalHandle: {
+    width: 44,
+    height: 4,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.overlay,
+    alignSelf: "center",
+    marginBottom: SPACING.lg,
+  },
+  modalTitle: {
+    ...TYPOGRAPHY.h2,
+  },
+  modalMessage: {
     ...TYPOGRAPHY.body,
-    color:      COLORS.primary,
-    fontWeight: "700",
-    fontSize:   14,
+    marginTop: SPACING.sm,
+    lineHeight: 22,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+    marginTop: SPACING.lg,
+  },
+  modalSecondary: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surfaceMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalSecondaryText: {
+    ...TYPOGRAPHY.bodyBold,
+  },
+  modalPrimary: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.xs,
+  },
+  modalPrimaryText: {
+    ...TYPOGRAPHY.buttonLabel,
+  },
+  pressed: {
+    opacity: 0.78,
   },
 });

@@ -4,7 +4,6 @@ import {
   Camera as CameraIcon,
   CheckCircle2,
   ChevronLeft,
-  PhilippinePeso,
   Receipt,
   RotateCcw,
   ShoppingCart,
@@ -22,13 +21,23 @@ import {
   View,
 } from "react-native";
 import { BigButton } from "../components/BigButton";
+import {
+  AppHeader,
+  EmptyState,
+  NoticeBanner,
+  StatusPill,
+} from "../components/ui";
 import { dbService } from "../database/db";
 import { processImageForText, ReceiptLineItem } from "../services/ocrService";
-import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
+import { COLORS, LAYOUT, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
 
 export type ReceiptProcessorProps = {
   onBack: () => void;
 };
+
+function money(value: number) {
+  return `PHP ${value.toFixed(2)}`;
+}
 
 export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) => {
   const [permission, requestPermission] = useCameraPermissions();
@@ -37,23 +46,6 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
   const [detectedItems, setDetectedItems] = useState<ReceiptLineItem[]>([]);
   const [mode, setMode] = useState<"PURCHASE" | "SALE">("PURCHASE");
   const [isSaving, setIsSaving] = useState(false);
-
-  if (!permission) return <View />;
-
-  if (!permission.granted) {
-    return (
-      <View style={styles.permissionWrap}>
-        <Receipt color={COLORS.textSecondary} size={64} />
-        <Text style={styles.permissionTitle}>Camera Access Required</Text>
-        <Text style={styles.permissionBody}>
-          Please grant camera permission to scan receipts.
-        </Text>
-        <Pressable style={styles.permissionBtn} onPress={requestPermission}>
-          <Text style={styles.permissionBtnText}>Grant Permission</Text>
-        </Pressable>
-      </View>
-    );
-  }
 
   const handleSnap = async () => {
     if (!cameraRef.current || isScanning) return;
@@ -66,14 +58,13 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
 
       const result = await processImageForText(photo.uri);
       if (result.items && result.items.length > 0) {
-        // Enrich items with existing DB prices for Profit Guard
         const allProducts = await dbService.getProducts();
-        const enriched = result.items.map(item => {
-          const existing = allProducts.find(p => p.name.toUpperCase() === item.name.toUpperCase());
+        const enriched = result.items.map((item) => {
+          const existing = allProducts.find((p) => p.name.toUpperCase() === item.name.toUpperCase());
           return {
             ...item,
             existingId: existing?.id,
-            suggestedPrice: Number((item.price * 1.15).toFixed(2))
+            suggestedPrice: Number((item.price * 1.15).toFixed(2)),
           };
         });
         setDetectedItems(enriched);
@@ -82,7 +73,7 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
         Alert.alert("No items found", "Try taking a clearer photo of the receipt.");
       }
     } catch (error) {
-      Alert.alert("Scan Failed", "Receipt could not be processed.");
+      Alert.alert("Scan Failed", error instanceof Error ? error.message : "Receipt could not be processed.");
     } finally {
       setIsScanning(false);
     }
@@ -107,18 +98,17 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
 
   const handleSave = async () => {
     if (detectedItems.length === 0 || isSaving) return;
-    
     setIsSaving(true);
     try {
       await dbService.processReceiptTransaction(detectedItems, mode);
       Alert.alert(
         "Success",
-        `${detectedItems.length} items recorded as ${mode === 'PURCHASE' ? 'purchases' : 'sales'}.`,
-        [{ text: "OK", onPress: onBack }]
+        `${detectedItems.length} items recorded as ${mode === "PURCHASE" ? "purchases" : "sales"}.`,
+        [{ text: "OK", onPress: onBack }],
       );
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      Alert.alert("Save Failed", "There was a problem with the database.");
+      Alert.alert("Save Failed", error instanceof Error ? error.message : "There was a problem with the database.");
     } finally {
       setIsSaving(false);
     }
@@ -127,96 +117,95 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
   const renderItem = ({ item }: { item: ReceiptLineItem }) => (
     <View style={styles.itemCard}>
       <View style={styles.itemHeader}>
-        <TextInput
-          style={styles.itemNameInput}
-          value={item.name}
-          onChangeText={(v) => updateItem(item.id, "name", v)}
-        />
-        <Pressable onPress={() => removeItem(item.id)}>
-          <Trash2 color={COLORS.error} size={20} />
+        <TextInput style={styles.itemNameInput} value={item.name} onChangeText={(v) => updateItem(item.id, "name", v)} />
+        <Pressable style={styles.deleteBtn} onPress={() => removeItem(item.id)}>
+          <Trash2 color={COLORS.danger} size={18} />
         </Pressable>
       </View>
       <View style={styles.itemDetails}>
-        <View style={styles.detailBox}>
-          <Text style={styles.detailLabel}>QTY</Text>
-          <TextInput
-            style={styles.detailInput}
-            value={String(item.quantity)}
-            keyboardType="number-pad"
-            onChangeText={(v) => updateItem(item.id, "quantity", v)}
-          />
-        </View>
-        <View style={styles.detailBox}>
-          <Text style={styles.detailLabel}>COST</Text>
-          <View style={styles.priceRow}>
-            <Text style={styles.currencyPrefix}>₱</Text>
-            <TextInput
-              style={styles.detailInput}
-              value={String(item.price)}
-              keyboardType="decimal-pad"
-              onChangeText={(v) => updateItem(item.id, "price", v)}
-            />
-          </View>
-        </View>
-        <View style={[styles.detailBox, { backgroundColor: COLORS.primary + '10' }]}>
-          <Text style={[styles.detailLabel, { color: COLORS.primary }]}>PROFIT GUARD™</Text>
-          <Text style={[styles.totalValue, { color: COLORS.primary }]}>
-            ₱{(item.price * 1.15).toFixed(2)}
-          </Text>
-        </View>
-        <View style={[styles.detailBox, { borderRightWidth: 0 }]}>
-          <Text style={styles.detailLabel}>TOTAL</Text>
-          <Text style={styles.totalValue}>₱{(item.quantity * item.price).toFixed(2)}</Text>
+        <Field label="Qty">
+          <TextInput style={styles.detailInput} value={String(item.quantity)} keyboardType="number-pad" onChangeText={(v) => updateItem(item.id, "quantity", v)} />
+        </Field>
+        <Field label="Cost">
+          <TextInput style={styles.detailInput} value={String(item.price)} keyboardType="decimal-pad" onChangeText={(v) => updateItem(item.id, "price", v)} />
+        </Field>
+        <View style={styles.totalBox}>
+          <Text style={styles.detailLabel}>Total</Text>
+          <Text style={styles.totalValue}>{money(item.quantity * item.price)}</Text>
         </View>
       </View>
+      <NoticeBanner
+        title="Profit Guard"
+        message={`Suggested selling price: ${money(item.price * 1.15)}`}
+        tone="primary"
+      />
     </View>
   );
 
+  if (!permission) return <View style={styles.container} />;
+
+  if (!permission.granted) {
+    return (
+      <View style={styles.permissionWrap}>
+        <Receipt color={COLORS.primary} size={54} />
+        <Text style={styles.permissionTitle}>Receipt scanner needs camera</Text>
+        <Text style={styles.permissionBody}>You can grant access for OCR, or go back and use manual add instead.</Text>
+        <BigButton title="Grant Camera Access" onPress={requestPermission} />
+        <BigButton title="Back to Add Stock" variant="outlined" onPress={onBack} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={onBack} style={styles.backBtn}>
-          <ChevronLeft color={COLORS.textPrimary} size={28} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Scan Receipt</Text>
-        <View style={{ width: 28 }} />
-      </View>
-
       {detectedItems.length === 0 ? (
-        <View style={styles.cameraContainer}>
-          <CameraView ref={cameraRef} style={styles.camera} facing="back">
+        <>
+          <View style={styles.camera}>
+            <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
             <View style={styles.overlay}>
+              <Pressable style={styles.floatingBack} onPress={onBack}>
+                <ChevronLeft color={COLORS.white} size={24} />
+              </Pressable>
               <View style={styles.scanTarget} />
               <Text style={styles.scanHint}>Align receipt within the frame</Text>
             </View>
-          </CameraView>
-          <View style={styles.controls}>
+          </View>
+          <View style={styles.capturePanel}>
+            <AppHeader
+              eyebrow="Receipt OCR"
+              title="Scan Receipt"
+              subtitle="Capture a clear receipt, then edit parsed items before saving."
+              icon={<View style={styles.headerIcon}><Receipt color={COLORS.primary} size={22} /></View>}
+              right={<StatusPill label="Camera" tone="success" />}
+            />
             <BigButton
-              title={isScanning ? "SCANNING..." : "SCAN RECEIPT"}
+              title={isScanning ? "Scanning..." : "Scan Receipt"}
               onPress={handleSnap}
-              icon={isScanning ? <ActivityIndicator color="#FFF" /> : <CameraIcon color="#FFF" size={24} />}
+              icon={isScanning ? <ActivityIndicator color={COLORS.white} /> : <CameraIcon color={COLORS.white} size={22} />}
+              disabled={isScanning}
             />
           </View>
-        </View>
+        </>
       ) : (
         <View style={styles.listContainer}>
-          {/* Mode Switcher */}
-          <View style={styles.modeSwitcher}>
-            <Pressable
-              style={[styles.modeBtn, mode === "PURCHASE" && styles.modeBtnActive]}
-              onPress={() => setMode("PURCHASE")}
-            >
-              <ShoppingCart color={mode === "PURCHASE" ? "#FFF" : COLORS.primary} size={20} />
-              <Text style={[styles.modeBtnText, mode === "PURCHASE" && styles.modeBtnTextActive]}>PURCHASE</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.modeBtn, mode === "SALE" && styles.modeBtnActive]}
-              onPress={() => setMode("SALE")}
-            >
-              <CheckCircle2 color={mode === "SALE" ? "#FFF" : COLORS.success} size={20} />
-              <Text style={[styles.modeBtnText, mode === "SALE" && styles.modeBtnTextActive]}>SALE</Text>
-            </Pressable>
+          <View style={styles.topPanel}>
+            <AppHeader
+              eyebrow="Receipt OCR"
+              title="Review Items"
+              subtitle="Choose purchase to add stock or sale to deduct stock."
+              icon={<Pressable style={styles.backBtn} onPress={onBack}><ChevronLeft color={COLORS.primary} size={22} /></Pressable>}
+              right={<StatusPill label={`${detectedItems.length} items`} tone="primary" />}
+            />
+            <View style={styles.modeSwitcher}>
+              <Pressable style={[styles.modeBtn, mode === "PURCHASE" && styles.modeBtnActive]} onPress={() => setMode("PURCHASE")}>
+                <ShoppingCart color={mode === "PURCHASE" ? COLORS.white : COLORS.primary} size={18} />
+                <Text style={[styles.modeBtnText, mode === "PURCHASE" && styles.modeBtnTextActive]}>Purchase</Text>
+              </Pressable>
+              <Pressable style={[styles.modeBtn, mode === "SALE" && styles.modeBtnActive]} onPress={() => setMode("SALE")}>
+                <CheckCircle2 color={mode === "SALE" ? COLORS.white : COLORS.success} size={18} />
+                <Text style={[styles.modeBtnText, mode === "SALE" && styles.modeBtnTextActive]}>Sale</Text>
+              </Pressable>
+            </View>
           </View>
 
           <FlatList
@@ -224,6 +213,7 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
             renderItem={renderItem}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
+            ListEmptyComponent={<EmptyState title="No items parsed" message="Try scanning again with better lighting." />}
           />
 
           <View style={styles.footer}>
@@ -232,10 +222,11 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
               <Text style={styles.resetBtnText}>Retry</Text>
             </Pressable>
             <BigButton
-              title={isSaving ? "SAVING..." : `PROCESS ${detectedItems.length} ITEMS`}
+              title={isSaving ? "Saving..." : `Process ${detectedItems.length} Items`}
               color={mode === "PURCHASE" ? COLORS.primary : COLORS.success}
-              style={{ flex: 1 }}
+              style={styles.footerButton}
               onPress={handleSave}
+              disabled={isSaving}
             />
           </View>
         </View>
@@ -244,166 +235,198 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
   );
 };
 
+const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <View style={styles.detailBox}>
+    <Text style={styles.detailLabel}>{label}</Text>
+    {children}
+  </View>
+);
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: 60,
-    paddingBottom: 16,
-    paddingHorizontal: SPACING.md,
-    backgroundColor: COLORS.surface,
-  },
-  headerTitle: {
-    ...TYPOGRAPHY.h3,
-    fontSize: 18,
-  },
-  backBtn: {
-    padding: 4,
   },
   permissionWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: SPACING.lg,
-    gap: SPACING.sm,
+    gap: SPACING.md,
+    backgroundColor: COLORS.background,
   },
-  permissionTitle: { ...TYPOGRAPHY.h2 },
-  permissionBody: { ...TYPOGRAPHY.body, textAlign: "center" },
-  permissionBtn: {
-    backgroundColor: COLORS.primary,
-    padding: 16,
-    borderRadius: RADIUS.md,
-    marginTop: 20,
+  permissionTitle: {
+    ...TYPOGRAPHY.h2,
+    textAlign: "center",
   },
-  permissionBtnText: { ...TYPOGRAPHY.buttonLabel },
-  cameraContainer: {
-    flex: 1,
+  permissionBody: {
+    ...TYPOGRAPHY.body,
+    textAlign: "center",
+    lineHeight: 22,
   },
   camera: {
     flex: 1,
+    backgroundColor: COLORS.black,
   },
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(2,6,23,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  floatingBack: {
+    position: "absolute",
+    top: 58,
+    left: SPACING.md,
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.pill,
+    backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
   },
   scanTarget: {
-    width: "80%",
-    height: "60%",
+    width: "78%",
+    height: "58%",
     borderWidth: 2,
-    borderColor: "#FFF",
-    borderRadius: RADIUS.lg,
+    borderColor: COLORS.white,
+    borderRadius: RADIUS.xl,
     borderStyle: "dashed",
   },
   scanHint: {
-    color: "#FFF",
-    marginTop: 20,
-    ...TYPOGRAPHY.bodyLarge,
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.white,
+    marginTop: SPACING.lg,
   },
-  controls: {
-    padding: SPACING.lg,
-    backgroundColor: COLORS.surface,
+  capturePanel: {
+    padding: SPACING.md,
+    paddingBottom: LAYOUT.bottomTabInset,
+    backgroundColor: COLORS.background,
+  },
+  headerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
   },
   listContainer: {
     flex: 1,
   },
+  topPanel: {
+    padding: SPACING.md,
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   modeSwitcher: {
     flexDirection: "row",
-    padding: SPACING.md,
     gap: SPACING.sm,
-    backgroundColor: COLORS.surface,
   },
   modeBtn: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 10,
+    minHeight: 48,
     borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: COLORS.overlay,
+    backgroundColor: COLORS.surface,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.xs,
   },
   modeBtnActive: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
   },
   modeBtnText: {
-    fontWeight: "700",
+    ...TYPOGRAPHY.bodyBold,
     color: COLORS.textSecondary,
   },
   modeBtnTextActive: {
-    color: "#FFF",
+    color: COLORS.white,
   },
   listContent: {
     padding: SPACING.md,
-    paddingBottom: 100,
+    paddingTop: 0,
+    paddingBottom: 112,
   },
   itemCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    ...SHADOW.card,
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
     borderColor: COLORS.overlay,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    ...SHADOW.soft,
   },
   itemHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
   },
   itemNameInput: {
     flex: 1,
+    ...TYPOGRAPHY.bodyBold,
     fontSize: 16,
-    fontWeight: "700",
     color: COLORS.textPrimary,
-    padding: 4,
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.overlay,
+    paddingHorizontal: SPACING.md,
+    minHeight: 48,
+  },
+  deleteBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.dangerSoft,
+    alignItems: "center",
+    justifyContent: "center",
   },
   itemDetails: {
     flexDirection: "row",
-    borderTopWidth: 1,
-    borderTopColor: COLORS.overlay,
-    paddingTop: 12,
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
   detailBox: {
     flex: 1,
-    paddingHorizontal: 8,
-    borderRightWidth: 1,
-    borderRightColor: COLORS.overlay,
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.overlay,
+    padding: SPACING.sm,
   },
   detailLabel: {
-    fontSize: 10,
-    color: COLORS.textSecondary,
-    marginBottom: 4,
-    fontWeight: "700",
+    ...TYPOGRAPHY.caption,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    marginBottom: 5,
   },
   detailInput: {
-    fontSize: 14,
+    ...TYPOGRAPHY.bodyBold,
     color: COLORS.textPrimary,
-    fontWeight: "600",
     padding: 0,
   },
-  priceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  currencyPrefix: {
-    fontSize: 12,
-    color: COLORS.success,
-    marginRight: 2,
+  totalBox: {
+    flex: 1.25,
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: "#BBD5FF",
+    padding: SPACING.sm,
   },
   totalValue: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.primary,
   },
   footer: {
     position: "absolute",
@@ -411,7 +434,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: SPACING.md,
-    paddingBottom: 30,
+    paddingBottom: 24,
     backgroundColor: COLORS.surface,
     flexDirection: "row",
     alignItems: "center",
@@ -424,8 +447,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   resetBtnText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    ...TYPOGRAPHY.caption,
     marginTop: 4,
+  },
+  footerButton: {
+    flex: 1,
   },
 });

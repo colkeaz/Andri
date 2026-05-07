@@ -17,6 +17,8 @@ export type ReceiptLineItem = {
   name: string;
   quantity: number;
   price: number; // Unit price
+  existingId?: string;
+  suggestedPrice?: number;
 };
 
 export type OCRResult = {
@@ -34,6 +36,7 @@ function normalizePrice(raw: string): number | null {
   if (!raw) return null;
   // Remove currency symbols and spaces
   const cleaned = raw.replace(/[₱PH\s,]/gi, "").replace(",", ".");
+  if (!/^\d+(?:\.\d{2})$/.test(cleaned)) return null;
   const num = parseFloat(cleaned);
   if (isNaN(num) || num <= 0) return null;
   return num;
@@ -85,7 +88,6 @@ function parseLine(line: string): ReceiptLineItem | null {
   name = text
     .replace(PRICE_PATTERN, "")
     .replace(QTY_PATTERN, "")
-    .replace(/[0-9]+(?:\.[0-9]{2})?/, "") // Remove leftover numbers
     .replace(/[^A-Za-z0-9\s&().,-]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -131,7 +133,12 @@ export async function processImageForText(
           const text = (line.text ?? "").trim();
           if (!text || text.length < 2) continue;
 
-          const frame = line.frame ?? line.boundingBox;
+          const lineWithFrame = line as typeof line & {
+            boundingBox?: { left?: number; top?: number; x?: number; y?: number; width?: number; height?: number };
+          };
+          const frame = (line.frame ?? lineWithFrame.boundingBox) as
+            | { left?: number; top?: number; x?: number; y?: number; width?: number; height?: number }
+            | undefined;
           const x = frame?.left ?? frame?.x ?? 0;
           const y = frame?.top ?? frame?.y ?? 0;
           const w = frame?.width ?? 100;
@@ -158,35 +165,7 @@ export async function processImageForText(
     }
   } catch (error) {
     console.error("OCR Error:", error);
-    // Fallback demo data if OCR fails or for testing
-    fullText = "COKE 1.5L 12 @ 55.00 660.00\nLUCKY ME BEEF 10PCS 12.50\nSKYFLAKES 24X 5.50";
-    const lines = fullText.split("\n");
-    lines.forEach(line => {
-      const parsed = parseLine(line);
-      if (parsed) items.push(parsed);
-    });
-
-    // Generate fallback chips for demo
-    items.forEach((item, idx) => {
-      chips.push({
-        id: `chip-name-${idx}`,
-        text: item.name,
-        type: "name",
-        x: 20,
-        y: 40 + idx * 80,
-        width: 200,
-        height: 30,
-      });
-      chips.push({
-        id: `chip-price-${idx}`,
-        text: item.price.toFixed(2),
-        type: "price",
-        x: 240,
-        y: 40 + idx * 80,
-        width: 100,
-        height: 30,
-      });
-    });
+    throw new Error("Text recognition failed. Try a clearer photo with better lighting.");
   }
 
   // Deduplicate items with same name (if OCR reads overlapping blocks)

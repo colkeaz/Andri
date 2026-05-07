@@ -1,56 +1,76 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TextInput, 
-  ScrollView, 
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as Haptics from "expo-haptics";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ChevronDown,
+  Package,
+  PhilippinePeso,
+  Save,
+  Scan,
+  Tag,
+} from "lucide-react-native";
+import React, { useMemo, useRef, useState } from "react";
+import {
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
-} from 'react-native';
-import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '../theme/tokens';
-import { BigButton } from '../components/BigButton';
-import { dbService } from '../database/db';
-import { Save, Package, ArrowLeft, Scan, ChevronDown } from 'lucide-react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as Haptics from 'expo-haptics';
-import { Modal, TouchableOpacity } from 'react-native';
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { BigButton } from "../components/BigButton";
+import {
+  AppHeader,
+  NoticeBanner,
+  PremiumCard,
+  StatusPill,
+} from "../components/ui";
+import { dbService } from "../database/db";
+import { COLORS, LAYOUT, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
 
 type ManualAddScreenProps = {
   onComplete: () => void;
   onBack?: () => void;
 };
 
+const categories = ["Food", "Drinks", "Household", "Others"];
+
 export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, onBack }) => {
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [costPrice, setCostPrice] = useState('');
-  const [sellingPrice, setSellingPrice] = useState('');
-  const [barcode, setBarcode] = useState('');
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [costPrice, setCostPrice] = useState("");
+  const [sellingPrice, setSellingPrice] = useState("");
+  const [barcode, setBarcode] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(false);
+  const scrollRef = useRef<ScrollView | null>(null);
+  const barcodeY = useRef(0);
 
-  const sanitizeInteger = (value: string, maxLength: number) => {
-    return value.replace(/\D/g, '').slice(0, maxLength);
-  };
+  const margin = useMemo(() => {
+    const cost = Number(costPrice);
+    const sell = Number(sellingPrice);
+    if (!cost || !sell || Number.isNaN(cost) || Number.isNaN(sell)) return null;
+    return ((sell - cost) / sell) * 100;
+  }, [costPrice, sellingPrice]);
+
+  const sanitizeInteger = (value: string, maxLength: number) => value.replace(/\D/g, "").slice(0, maxLength);
 
   const sanitizeDecimal = (value: string, maxLength: number) => {
-    const cleaned = value.replace(/[^\d.]/g, '');
-    const [whole, ...fractionParts] = cleaned.split('.');
-    const fraction = fractionParts.join('');
+    const cleaned = value.replace(/[^\d.]/g, "");
+    const [whole, ...fractionParts] = cleaned.split(".");
+    const fraction = fractionParts.join("");
     const normalizedWhole = whole.slice(0, maxLength);
-
-    if (cleaned.includes('.')) {
-      return `${normalizedWhole}.${fraction.slice(0, 2)}`;
-    }
-
-    return normalizedWhole;
+    return cleaned.includes(".") ? `${normalizedWhole}.${fraction.slice(0, 2)}` : normalizedWhole;
   };
 
   const validateForm = () => {
@@ -61,32 +81,27 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
     const sell = Number(sellingPrice);
 
     if (trimmedName.length < 2 || trimmedName.length > 50) {
-      Alert.alert('Invalid Name', 'Product name must be between 2 and 50 characters.');
+      Alert.alert("Invalid Name", "Product name must be between 2 and 50 characters.");
       return null;
     }
-
     if (!/^[A-Za-z0-9\s\-\&,().]+$/.test(trimmedName)) {
-      Alert.alert('Invalid Name', 'Only letters, numbers, and basic symbols are allowed.');
+      Alert.alert("Invalid Name", "Only letters, numbers, and basic symbols are allowed.");
       return null;
     }
-
     if (!trimmedCategory) {
-      Alert.alert('No Category', 'Please select a category first.');
+      Alert.alert("No Category", "Please select a category first.");
       return null;
     }
-
     if (!quantity || !Number.isInteger(qty) || qty <= 0 || qty > 99999) {
-      Alert.alert('Invalid Quantity', 'Quantity must be a whole number up to 99,999.');
+      Alert.alert("Invalid Quantity", "Quantity must be a whole number up to 99,999.");
       return null;
     }
-
     if (!costPrice || Number.isNaN(cost) || cost <= 0 || cost >= 1000000) {
-      Alert.alert('Invalid Cost', 'Cost price must be greater than 0.');
+      Alert.alert("Invalid Cost", "Cost price must be greater than 0.");
       return null;
     }
-
     if (!sellingPrice || Number.isNaN(sell) || sell <= 0 || sell >= 1000000) {
-      Alert.alert('Invalid Price', 'Selling price must be greater than 0.');
+      Alert.alert("Invalid Price", "Selling price must be greater than 0.");
       return null;
     }
 
@@ -96,6 +111,7 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
       cost,
       sell,
       barcode: barcode.trim() || null,
+      category: trimmedCategory,
     };
   };
 
@@ -112,193 +128,153 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
-        Alert.alert('Permission Required', 'Camera permission is needed to scan barcodes.');
+        Alert.alert("Permission Required", "Camera permission is needed to scan barcodes.");
         return;
       }
     }
     setShowScanner(true);
   };
 
-  const handleSave = async () => {
-    if (isSaving) {
-      return;
-    }
+  const scrollToBarcode = () => {
+    scrollRef.current?.scrollTo({ y: Math.max(0, barcodeY.current - 24), animated: true });
+  };
 
+  const handleSave = async () => {
+    if (isSaving) return;
     const validated = validateForm();
     if (!validated) return;
 
     try {
       setIsSaving(true);
       const productId = Date.now().toString();
-      await dbService.addProduct(productId, validated.trimmedName, validated.barcode);
-      await dbService.addBatch(
-        `B-${productId}`,
-        productId,
-        validated.qty,
-        validated.cost,
-        validated.sell
-      );
+      await dbService.addProduct(productId, validated.trimmedName, validated.barcode, validated.category);
+      await dbService.addBatch(`B-${productId}`, productId, validated.qty, validated.cost, validated.sell);
 
-      Alert.alert('Saved! ✅', `${validated.trimmedName} added to your shop.`);
-      setName('');
-      setCategory('');
-      setQuantity('');
-      setCostPrice('');
-      setSellingPrice('');
-      setBarcode('');
+      Alert.alert("Saved", `${validated.trimmedName} added to your shop.`);
+      setName("");
+      setCategory("");
+      setQuantity("");
+      setCostPrice("");
+      setSellingPrice("");
+      setBarcode("");
       onComplete();
     } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'There was a problem saving. Please try again.');
+      Alert.alert("Error", error instanceof Error ? error.message : "There was a problem saving.");
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {onBack ? (
-          <Pressable style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]} onPress={onBack}>
-            <ArrowLeft color={COLORS.primary} size={22} />
-            <Text style={styles.backButtonText}>Back</Text>
-          </Pressable>
-        ) : null}
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <AppHeader
+          eyebrow="Add Stock"
+          title="Add Product"
+          subtitle="Manual entry is ready even when camera access is off."
+          icon={onBack ? (
+            <Pressable style={({ pressed }) => [styles.backButton, pressed && styles.pressed]} onPress={onBack}>
+              <ArrowLeft color={COLORS.primary} size={22} />
+            </Pressable>
+          ) : <View style={styles.headerIcon}><Package color={COLORS.primary} size={22} /></View>}
+          right={<StatusPill label="Manual" tone="primary" />}
+        />
 
-        <View style={styles.header}>
-          <Package color={COLORS.secondary} size={44} />
-          <Text style={TYPOGRAPHY.h1}>Add Product</Text>
-          <Text style={TYPOGRAPHY.body}>Enter the details of your new item</Text>
+        <View style={styles.modeStrip}>
+          <View style={styles.modeItemActive}>
+            <Package color={COLORS.primary} size={18} />
+            <Text style={styles.modeItemTextActive}>Manual</Text>
+          </View>
+          <Pressable style={({ pressed }) => [styles.modeItem, pressed && styles.pressed]} onPress={scrollToBarcode}>
+            <Scan color={COLORS.textSecondary} size={18} />
+            <Text style={styles.modeItemText}>Barcode optional</Text>
+          </Pressable>
         </View>
 
-        <View style={styles.form}>
-          <Text style={styles.label}>Product Name</Text>
-          <TextInput 
-            style={styles.input} 
-            placeholder="e.g. Lucky Me Noodles"
-            placeholderTextColor={COLORS.textSecondary}
-            value={name}
-            onChangeText={(value) => setName(value.slice(0, 50))}
-            maxLength={50}
-          />
+        <PremiumCard style={styles.form}>
+          <Field label="Product Name" icon={<Tag color={COLORS.primary} size={16} />}>
+            <TextInput style={styles.input} placeholder="e.g. Lucky Me Noodles" placeholderTextColor={COLORS.textSecondary} value={name} onChangeText={(value) => setName(value.slice(0, 50))} maxLength={50} />
+          </Field>
 
-          <Text style={styles.label}>Category</Text>
-          <View style={{ position: 'relative', zIndex: 10 }}>
-            <Pressable 
-              style={[styles.input, styles.dropdownTrigger]} 
-              onPress={() => setShowDropdown(!showDropdown)}
-            >
-              <Text style={[styles.dropdownText, !category && { color: COLORS.textSecondary }]}>
-                {category || "Select Category"}
-              </Text>
-              <ChevronDown color={COLORS.textSecondary} size={22} />
-            </Pressable>
+          <Field label="Category">
+            <View style={styles.dropdownWrap}>
+              <Pressable style={styles.inputButton} onPress={() => setShowDropdown(!showDropdown)}>
+                <Text style={[styles.inputButtonText, !category && styles.placeholder]}>{category || "Select category"}</Text>
+                <ChevronDown color={COLORS.textSecondary} size={20} />
+              </Pressable>
+              {showDropdown ? (
+                <View style={styles.dropdownList}>
+                  {categories.map((item) => (
+                    <Pressable
+                      key={item}
+                      style={({ pressed }) => [styles.dropdownItem, pressed && { backgroundColor: COLORS.primarySoft }]}
+                      onPress={() => {
+                        setCategory(item);
+                        setShowDropdown(false);
+                      }}
+                    >
+                      <Text style={styles.dropdownItemText}>{item}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          </Field>
 
-            {showDropdown && (
-              <View style={styles.dropdownList}>
-                {["Food", "Drinks", "Household", "Others"].map((item) => (
-                  <Pressable 
-                    key={item} 
-                    style={({ pressed }) => [styles.dropdownItem, pressed && { backgroundColor: COLORS.accentSoft }]}
-                    onPress={() => {
-                      setCategory(item);
-                      setShowDropdown(false);
-                    }}
-                  >
-                    <Text style={styles.dropdownItemText}>{item}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            )}
-          </View>
+          <Field label="Quantity">
+            <TextInput style={styles.input} placeholder="0" placeholderTextColor={COLORS.textSecondary} keyboardType="numeric" value={quantity} onChangeText={(value) => setQuantity(sanitizeInteger(value, 5))} maxLength={5} />
+          </Field>
 
           <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Quantity</Text>
-              <TextInput 
-                style={styles.input} 
-                placeholder="0"
-                placeholderTextColor={COLORS.textSecondary}
-                keyboardType="numeric"
-                value={quantity}
-                onChangeText={(value) => setQuantity(sanitizeInteger(value, 5))}
-                maxLength={5}
-              />
-            </View>
+            <Field label="Cost Price" style={styles.rowField} icon={<PhilippinePeso color={COLORS.warning} size={16} />}>
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={COLORS.textSecondary} keyboardType="numeric" value={costPrice} onChangeText={(value) => setCostPrice(sanitizeDecimal(value, 7))} maxLength={10} />
+            </Field>
+            <Field label="Sell Price" style={styles.rowField} icon={<PhilippinePeso color={COLORS.success} size={16} />}>
+              <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={COLORS.textSecondary} keyboardType="numeric" value={sellingPrice} onChangeText={(value) => setSellingPrice(sanitizeDecimal(value, 7))} maxLength={10} />
+            </Field>
           </View>
 
-          <Text style={styles.label}>Cost Price (Supplier)</Text>
-          <TextInput 
-            style={styles.input} 
-            placeholder="₱ 0.00"
-            placeholderTextColor={COLORS.textSecondary}
-            keyboardType="numeric"
-            value={costPrice}
-            onChangeText={(value) => setCostPrice(sanitizeDecimal(value, 7))}
-            maxLength={10}
-          />
-
-          <Text style={styles.label}>Selling Price (Markup)</Text>
-          <TextInput 
-            style={styles.input} 
-            placeholder="₱ 0.00"
-            placeholderTextColor={COLORS.textSecondary}
-            keyboardType="numeric"
-            value={sellingPrice}
-            onChangeText={(value) => setSellingPrice(sanitizeDecimal(value, 7))}
-            maxLength={10}
-          />
-
-          <Text style={styles.label}>Barcode (Optional)</Text>
-          <View style={styles.integratedInputContainer}>
-            <TextInput 
-              style={styles.integratedInput} 
-              placeholder="Scan or type barcode"
-              placeholderTextColor={COLORS.textSecondary}
-              value={barcode}
-              onChangeText={setBarcode}
+          {margin !== null ? (
+            <NoticeBanner
+              title={margin >= 12 ? "Healthy margin" : "Low margin"}
+              message={`Estimated profit margin: ${margin.toFixed(1)}%`}
+              tone={margin >= 12 ? "success" : "warning"}
+              icon={<CheckCircle2 color={margin >= 12 ? COLORS.success : COLORS.warning} size={20} />}
             />
-            <TouchableOpacity 
-              style={styles.integratedScannerBtn} 
-              onPress={startScanning}
-              activeOpacity={0.7}
-            >
-              <Scan color={COLORS.primary} size={24} />
-            </TouchableOpacity>
+          ) : null}
+
+          <View onLayout={(event) => { barcodeY.current = event.nativeEvent.layout.y; }}>
+          <Field label="Barcode">
+            <View style={styles.integratedInputContainer}>
+              <TextInput style={styles.integratedInput} placeholder="Scan or type barcode" placeholderTextColor={COLORS.textSecondary} value={barcode} onChangeText={setBarcode} />
+              <TouchableOpacity style={styles.integratedScannerBtn} onPress={startScanning} activeOpacity={0.78}>
+                <Scan color={COLORS.primary} size={22} />
+              </TouchableOpacity>
+            </View>
+          </Field>
           </View>
 
-          <BigButton 
-            title={isSaving ? "SAVING..." : "SAVE TO INVENTORY"} 
+          <BigButton
+            title={isSaving ? "Saving..." : "Save to Inventory"}
             color={COLORS.success}
             onPress={handleSave}
             style={styles.saveButton}
-            icon={<Save color={COLORS.white} size={28} />}
+            icon={<Save color={COLORS.white} size={22} />}
+            disabled={isSaving}
           />
-        </View>
+        </PremiumCard>
 
-        {/* Scanner Modal */}
         <Modal visible={showScanner} animationType="slide">
           <View style={styles.scannerContainer}>
             <CameraView
               style={StyleSheet.absoluteFill}
               onBarcodeScanned={isScanning ? undefined : handleBarCodeScanned}
-              barcodeScannerSettings={{
-                barcodeTypes: ["qr", "ean13", "ean8", "upc_a"],
-              }}
+              barcodeScannerSettings={{ barcodeTypes: ["qr", "ean13", "ean8", "upc_a"] }}
             />
             <View style={styles.scannerOverlay}>
               <View style={styles.scannerFrame} />
               <Text style={styles.scannerHint}>Align barcode within the frame</Text>
-              <BigButton 
-                title="CANCEL" 
-                variant="outlined"
-                color={COLORS.white}
-                onPress={() => setShowScanner(false)}
-                style={styles.cancelScanBtn}
-              />
+              <BigButton title="Cancel" variant="outlined" color={COLORS.white} onPress={() => setShowScanner(false)} style={styles.cancelScanBtn} />
             </View>
           </View>
         </Modal>
@@ -307,165 +283,215 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
   );
 };
 
+const Field: React.FC<{ label: string; children: React.ReactNode; icon?: React.ReactNode; style?: any }> = ({
+  label,
+  children,
+  icon,
+  style,
+}) => (
+  <View style={[styles.field, style]}>
+    <View style={styles.labelRow}>
+      {icon}
+      <Text style={styles.label}>{label}</Text>
+    </View>
+    {children}
+  </View>
+);
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
   scrollContent: {
-    padding: SPACING.lg,
+    padding: SPACING.md,
+    paddingBottom: LAYOUT.bottomTabInset,
   },
   backButton: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.accentSoft,
-    marginBottom: SPACING.sm,
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  backButtonPressed: {
-    opacity: 0.7,
+  headerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  backButtonText: {
-    ...TYPOGRAPHY.bodyBold,
-    color: COLORS.primary,
-    fontSize: 17,
+  modeStrip: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: SPACING.xl,
-    marginTop: 20,
-    gap: 6,
+  modeItemActive: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primarySoft,
+    borderWidth: 1,
+    borderColor: "#BBD5FF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.xs,
   },
-  form: {
+  modeItem: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: RADIUS.md,
     backgroundColor: COLORS.surface,
-    padding: SPACING.lg,
-    borderRadius: RADIUS.xl,
     borderWidth: 1,
     borderColor: COLORS.overlay,
-    shadowColor: '#8B6914',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 5,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.xs,
+  },
+  modeItemTextActive: {
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.primary,
+  },
+  modeItemText: {
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.textSecondary,
+  },
+  form: {
+    gap: SPACING.sm,
+  },
+  field: {
+    marginBottom: SPACING.sm,
+  },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 7,
   },
   label: {
-    ...TYPOGRAPHY.bodyLarge,
-    fontSize: 17,
-    marginBottom: 10,
-    color: COLORS.textSecondary,
+    ...TYPOGRAPHY.caption,
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
   input: {
     backgroundColor: COLORS.background,
-    height: 64,
+    minHeight: 54,
     borderRadius: RADIUS.md,
-    paddingHorizontal: 18,
-    fontSize: 20,
-    marginBottom: 22,
-    borderWidth: 1.5,
+    paddingHorizontal: SPACING.md,
+    fontSize: 16,
+    borderWidth: 1,
     borderColor: COLORS.overlay,
     color: COLORS.textPrimary,
   },
-  dropdownTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  inputButton: {
+    backgroundColor: COLORS.background,
+    minHeight: 54,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.overlay,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  dropdownText: {
-    fontSize: 20,
-    color: COLORS.textPrimary,
+  inputButtonText: {
+    ...TYPOGRAPHY.bodyBold,
+    fontSize: 16,
+  },
+  placeholder: {
+    color: COLORS.textSecondary,
+    fontFamily: "Inter_400Regular",
+    fontWeight: "400",
+  },
+  dropdownWrap: {
+    position: "relative",
   },
   dropdownList: {
-    position: 'absolute',
-    top: 68,
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.white,
+    marginTop: SPACING.xs,
+    backgroundColor: COLORS.surface,
     borderRadius: RADIUS.md,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: COLORS.overlay,
-    shadowColor: '#8B6914',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
-    zIndex: 100,
-    overflow: 'hidden',
+    overflow: "hidden",
+    ...SHADOW.card,
   },
   dropdownItem: {
-    paddingVertical: 16,
-    paddingHorizontal: 18,
+    paddingVertical: 15,
+    paddingHorizontal: SPACING.md,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.overlay,
   },
   dropdownItemText: {
-    ...TYPOGRAPHY.bodyLarge,
-    fontSize: 18,
-    color: COLORS.textPrimary,
+    ...TYPOGRAPHY.bodyBold,
   },
   row: {
-    flexDirection: 'row',
+    flexDirection: "row",
+    gap: SPACING.sm,
   },
-  saveButton: {
-    marginTop: 12,
-    height: 72,
+  rowField: {
+    flex: 1,
   },
   integratedInputContainer: {
-    position: 'relative',
-    marginBottom: 22,
-    justifyContent: 'center',
+    position: "relative",
+    justifyContent: "center",
   },
   integratedInput: {
     backgroundColor: COLORS.background,
-    height: 64,
+    minHeight: 54,
     borderRadius: RADIUS.md,
-    paddingLeft: 18,
-    paddingRight: 64,
-    fontSize: 20,
-    borderWidth: 1.5,
+    paddingLeft: SPACING.md,
+    paddingRight: 62,
+    fontSize: 16,
+    borderWidth: 1,
     borderColor: COLORS.overlay,
     color: COLORS.textPrimary,
   },
   integratedScannerBtn: {
-    position: 'absolute',
-    right: 8,
-    width: 48,
-    height: 48,
-    borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.accentSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: "absolute",
+    right: 7,
+    width: 42,
+    height: 42,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveButton: {
+    marginTop: SPACING.sm,
   },
   scannerContainer: {
     flex: 1,
-    backgroundColor: 'black',
+    backgroundColor: COLORS.black,
   },
   scannerOverlay: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(2,6,23,0.58)",
   },
   scannerFrame: {
     width: 250,
     height: 250,
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: COLORS.white,
     borderRadius: RADIUS.xl,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
   scannerHint: {
-    color: COLORS.white,
-    marginTop: 24,
     ...TYPOGRAPHY.bodyBold,
-    fontSize: 18,
+    color: COLORS.white,
+    marginTop: SPACING.lg,
   },
   cancelScanBtn: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 50,
-    width: '80%',
-  }
+    width: "80%",
+  },
+  pressed: {
+    opacity: 0.75,
+  },
 });
