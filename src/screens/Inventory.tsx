@@ -56,164 +56,105 @@ type EditForm = {
   quantity: string;
   sellingPrice: string;
   costPrice: string;
-  minStock: string;
+  min_stock: string;
 };
 
-function money(value: number) {
-  return `PHP ${value.toFixed(2)}`;
-}
-
-function safeNum(val: string): number | undefined {
-  const n = parseFloat(val);
-  return Number.isNaN(n) ? undefined : n;
-}
-
-function safeInt(val: string): number | undefined {
-  const n = parseInt(val, 10);
-  return Number.isNaN(n) ? undefined : n;
-}
-
-export const InventoryScreen: React.FC = () => {
+export default function InventoryScreen() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
-  const [permission, requestPermission] = useCameraPermissions();
-  const isScanningRef = useRef(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [editTarget, setEditTarget] = useState<InventoryItem | null>(null);
-  const [form, setForm] = useState<EditForm>({
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const [editForm, setEditForm] = useState<EditForm>({
     name: "",
     barcode: "",
     quantity: "",
     sellingPrice: "",
     costPrice: "",
-    minStock: "",
+    min_stock: "",
   });
 
-  const loadInventory = useCallback(async () => {
-    const products = await getAggregatedInventory();
-    setInventory(
-      products.map((p) => ({
-        id: p.id,
-        name: p.name,
-        barcode: p.barcode,
-        quantity: p.totalStock,
-        min_stock: p.minStockLevel,
-        sellingPrice: p.sellingPrice,
-        costPrice: p.costPrice,
-      })),
-    );
+  const loadData = useCallback(async () => {
+    try {
+      const data = await getAggregatedInventory();
+      setInventory(data);
+    } catch (err) {
+      console.error("Failed to load inventory:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      const run = async () => {
-        try {
-          await loadInventory();
-        } catch (error) {
-          setInventory([]);
-          Alert.alert("Inventory Unavailable", error instanceof Error ? error.message : "Could not load inventory.");
-        } finally {
-          if (active) setIsLoading(false);
-        }
-      };
-      run();
-      return () => {
-        active = false;
-      };
-    }, [loadInventory]),
+      loadData();
+    }, [loadData])
   );
 
-  const onRefresh = async () => {
-    setIsRefreshing(true);
-    await loadInventory();
-    setIsRefreshing(false);
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
   };
 
   const openEdit = (item: InventoryItem) => {
-    setForm({
-      name: item.name,
-      barcode: item.barcode ?? "",
-      quantity: String(item.quantity),
-      sellingPrice: String(item.sellingPrice),
-      costPrice: String(item.costPrice),
-      minStock: String(item.min_stock),
-    });
     setEditTarget(item);
-  };
-
-  const handleBarCodeScanned = ({ data }: { data: string }) => {
-    if (isScanningRef.current) return;
-    isScanningRef.current = true;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setForm((f) => ({ ...f, barcode: data }));
-    setShowScanner(false);
-    setTimeout(() => { isScanningRef.current = false; }, 2000);
-  };
-
-  const startScanning = async () => {
-    if (!permission?.granted) {
-      const result = await requestPermission();
-      if (!result.granted) {
-        Alert.alert("Permission Required", "Camera permission is needed to scan barcodes.");
-        return;
-      }
-    }
-    setShowScanner(true);
+    setEditForm({
+      name: item.name,
+      barcode: item.barcode || "",
+      quantity: item.quantity.toString(),
+      sellingPrice: item.sellingPrice.toString(),
+      costPrice: item.costPrice.toString(),
+      min_stock: item.min_stock.toString(),
+    });
   };
 
   const handleSave = async () => {
     if (!editTarget) return;
-    const name = form.name.trim();
-    if (!name) {
-      Alert.alert("Validation", "Product name cannot be empty.");
-      return;
-    }
-
     setIsSaving(true);
     try {
       await dbService.updateProduct(editTarget.id, {
-        name,
-        barcode: form.barcode.trim() || null,
-        minStockLevel: safeInt(form.minStock) ?? editTarget.min_stock,
+        name: editForm.name,
+        barcode: editForm.barcode,
+        quantity: parseInt(editForm.quantity) || 0,
+        sellingPrice: parseFloat(editForm.sellingPrice) || 0,
+        costPrice: parseFloat(editForm.costPrice) || 0,
+        min_stock: parseInt(editForm.min_stock) || 0,
       });
-      await dbService.updateInventoryPrices(editTarget.id, {
-        quantity: safeInt(form.quantity),
-        sellingPrice: safeNum(form.sellingPrice),
-        costPrice: safeNum(form.costPrice),
-      });
+      await loadData();
       setEditTarget(null);
-      await loadInventory();
     } catch (err) {
-      Alert.alert("Save Failed", err instanceof Error ? err.message : "Could not save changes.");
+      Alert.alert("Error", "Failed to save changes");
     } finally {
       setIsSaving(false);
     }
   };
 
   const confirmDelete = (item: InventoryItem) => {
-    const doDelete = async () => {
-      try {
-        await dbService.deleteProduct(item.id);
-        await loadInventory();
-      } catch (err) {
-        Alert.alert("Delete Failed", err instanceof Error ? err.message : "Could not delete product.");
-      }
-    };
-
-    if (Platform.OS === "web") {
-      if (window.confirm(`Remove "${item.name}" and all stock records?`)) doDelete();
-      return;
-    }
-
-    Alert.alert("Delete Product", `Remove "${item.name}" and all stock records?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: doDelete },
-    ]);
+    Alert.alert(
+      "Delete Item",
+      `Are you sure you want to remove ${item.name}? This action cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await dbService.deleteProduct(item.id);
+              await loadData();
+            } catch (err) {
+              Alert.alert("Error", "Failed to delete item");
+            }
+          },
+        },
+      ]
+    );
   };
+
+  const money = (val: number) => `₱${val.toLocaleString()}`;
 
   const filteredInventory = searchQuery.trim()
     ? inventory.filter((i) => i.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
@@ -279,7 +220,6 @@ export const InventoryScreen: React.FC = () => {
     <AppScreen scroll={false}>
       <View style={styles.inner}>
         <AppHeader
-          eyebrow="Inventory"
           title="Stock Room"
           subtitle="Search, edit, and protect your shop inventory."
           right={<StatusPill label={`${stockedPct}% stocked`} tone={stockedPct >= 70 ? "success" : "warning"} />}
@@ -299,81 +239,72 @@ export const InventoryScreen: React.FC = () => {
             placeholderTextColor={COLORS.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            returnKeyType="search"
-            clearButtonMode="while-editing"
           />
-          {searchQuery.length > 0 ? (
-            <Pressable onPress={() => setSearchQuery("")} hitSlop={10}>
-              <CircleX color={COLORS.textSecondary} size={20} />
-            </Pressable>
+          {searchQuery ? (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <CircleX color={COLORS.textTertiary} size={18} />
+            </TouchableOpacity>
           ) : null}
         </View>
 
-        {isLoading ? (
-          <LoadingState label="Loading inventory..." />
+        {loading ? (
+          <LoadingState message="Loading your stock..." />
+        ) : filteredInventory.length === 0 ? (
+          <EmptyState
+            title={searchQuery ? "No matches" : "Empty Shelf"}
+            message={searchQuery ? "Try a different search term." : "Start by adding items to your stock room."}
+            icon={<Boxes color={COLORS.primary} size={30} />}
+          />
         ) : (
           <FlatList
             data={filteredInventory}
-            renderItem={renderItem}
             keyExtractor={(item) => item.id}
+            renderItem={renderItem}
             contentContainerStyle={styles.list}
-            refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
             showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <EmptyState
-                title={searchQuery.trim() ? "No matching items" : "Your shop is empty"}
-                message={searchQuery.trim() ? "Try another product name or clear the search." : "Add your first product from the Add Stock tab."}
-                icon={<Boxes color={COLORS.primary} size={30} />}
-              />
-            }
           />
         )}
       </View>
 
       <Modal animationType="slide" transparent visible={!!editTarget} onRequestClose={() => setEditTarget(null)}>
-        <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setEditTarget(null)} />
           <View style={styles.modalCard}>
             <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <View style={styles.modalIconWrap}>
-                <Package color={COLORS.primary} size={20} />
-              </View>
-              <View style={styles.modalHeaderText}>
-                <Text style={styles.modalTitle}>Edit Product</Text>
-                <Text style={styles.modalSubtitle}>Changes update all live views.</Text>
-              </View>
-            </View>
+            <Text style={styles.modalTitle}>Edit Product</Text>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Field label="Product Name">
-                <TextInput style={styles.input} value={form.name} onChangeText={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="e.g. Coke 1.5L" placeholderTextColor={COLORS.textSecondary} />
-              </Field>
+            <ScrollView style={styles.modalForm} showsVerticalScrollIndicator={false}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Product Name</Text>
+                <TextInput style={styles.input} value={editForm.name} onChangeText={(t) => setEditForm({ ...editForm, name: t })} placeholder="e.g. Piattos 40g" />
+              </View>
 
-              <Field label="Barcode">
-                <View style={styles.barcodeInputRow}>
-                  <TextInput style={[styles.input, styles.inputFlex]} value={form.barcode} onChangeText={(v) => setForm((f) => ({ ...f, barcode: v }))} placeholder="Optional barcode" placeholderTextColor={COLORS.textSecondary} keyboardType="number-pad" />
-                  <TouchableOpacity style={styles.inlineScanBtn} onPress={startScanning}>
-                    <Scan color={COLORS.white} size={20} />
-                  </TouchableOpacity>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Barcode (Optional)</Text>
+                <TextInput style={styles.input} value={editForm.barcode} onChangeText={(t) => setEditForm({ ...editForm, barcode: t })} placeholder="Scan or type barcode" />
+              </View>
+
+              <View style={styles.row}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.label}>Quantity</Text>
+                  <TextInput style={styles.input} value={editForm.quantity} onChangeText={(t) => setEditForm({ ...editForm, quantity: t })} keyboardType="numeric" />
                 </View>
-              </Field>
-
-              <View style={styles.row}>
-                <Field label="Selling Price" style={styles.rowField}>
-                  <TextInput style={styles.input} value={form.sellingPrice} onChangeText={(v) => setForm((f) => ({ ...f, sellingPrice: v }))} placeholder="0.00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" />
-                </Field>
-                <Field label="Cost Price" style={styles.rowField}>
-                  <TextInput style={styles.input} value={form.costPrice} onChangeText={(v) => setForm((f) => ({ ...f, costPrice: v }))} placeholder="0.00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" />
-                </Field>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.label}>Min. Stock</Text>
+                  <TextInput style={styles.input} value={editForm.min_stock} onChangeText={(t) => setEditForm({ ...editForm, min_stock: t })} keyboardType="numeric" />
+                </View>
               </View>
 
               <View style={styles.row}>
-                <Field label="Quantity" style={styles.rowField}>
-                  <TextInput style={styles.input} value={form.quantity} onChangeText={(v) => setForm((f) => ({ ...f, quantity: v }))} placeholder="0" placeholderTextColor={COLORS.textSecondary} keyboardType="number-pad" />
-                </Field>
-                <Field label="Min Stock" style={styles.rowField}>
-                  <TextInput style={styles.input} value={form.minStock} onChangeText={(v) => setForm((f) => ({ ...f, minStock: v }))} placeholder="5" placeholderTextColor={COLORS.textSecondary} keyboardType="number-pad" />
-                </Field>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.label}>Cost Price</Text>
+                  <TextInput style={styles.input} value={editForm.costPrice} onChangeText={(t) => setEditForm({ ...editForm, costPrice: t })} keyboardType="numeric" />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.label}>Selling Price</Text>
+                  <TextInput style={styles.input} value={editForm.sellingPrice} onChangeText={(t) => setEditForm({ ...editForm, sellingPrice: t })} keyboardType="numeric" />
+                </View>
               </View>
             </ScrollView>
 
@@ -388,65 +319,36 @@ export const InventoryScreen: React.FC = () => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
-      <Modal visible={showScanner} animationType="slide">
-        <View style={styles.scannerContainer}>
-          <CameraView
-            style={StyleSheet.absoluteFill}
-            facing="back"
-            onBarcodeScanned={handleBarCodeScanned}
-            barcodeScannerSettings={{ barcodeTypes: ["aztec", "ean13", "ean8", "qr", "pdf417", "upc_e", "datamatrix", "code39", "code93", "itf14", "codabar", "code128", "upc_a"] }}
-          />
-          <View style={styles.scannerOverlay}>
-            <View style={styles.scannerFrame} />
-            <Text style={styles.scannerHint}>Align barcode inside the frame</Text>
-            <TouchableOpacity style={styles.cancelScanBtn} onPress={() => setShowScanner(false)}>
-              <Text style={styles.cancelScanBtnText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </AppScreen>
   );
-};
-
-const Field: React.FC<{ label: string; children: React.ReactNode; style?: any }> = ({ label, children, style }) => (
-  <View style={[styles.fieldWrap, style]}>
-    <Text style={styles.fieldLabel}>{label}</Text>
-    {children}
-  </View>
-);
+}
 
 const styles = StyleSheet.create({
   inner: {
     flex: 1,
-    padding: SPACING.md,
-    paddingBottom: 0,
+    paddingHorizontal: LAYOUT.screenPadding,
   },
   metricsRow: {
     flexDirection: "row",
     gap: SPACING.sm,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.md,
   },
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    height: 52,
+    gap: SPACING.sm,
     borderWidth: 1,
     borderColor: COLORS.overlay,
-    paddingHorizontal: SPACING.md,
-    minHeight: 54,
-    gap: SPACING.sm,
-    marginBottom: SPACING.sm,
-    ...SHADOW.soft,
+    marginBottom: SPACING.md,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    ...TYPOGRAPHY.body,
     color: COLORS.textPrimary,
-    fontFamily: "Inter_400Regular",
-    paddingVertical: 0,
   },
   list: {
     paddingTop: SPACING.xs,
@@ -527,8 +429,7 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(15,23,42,0.38)",
-    justifyContent: "flex-end",
+    backgroundColor: "rgba(15,23,42,0.5)",
   },
   modalCard: {
     backgroundColor: COLORS.surface,
@@ -536,7 +437,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: RADIUS.xl,
     padding: SPACING.lg,
     paddingBottom: SPACING.xl,
-    maxHeight: "90%",
     ...SHADOW.modal,
   },
   modalHandle: {
@@ -547,140 +447,68 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: SPACING.lg,
   },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACING.sm,
-    marginBottom: SPACING.lg,
-  },
-  modalIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primarySoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalHeaderText: {
-    flex: 1,
-  },
   modalTitle: {
     ...TYPOGRAPHY.h2,
+    marginBottom: SPACING.lg,
   },
-  modalSubtitle: {
-    ...TYPOGRAPHY.caption,
-    marginTop: 3,
+  modalForm: {
+    maxHeight: 400,
   },
-  fieldWrap: {
+  inputGroup: {
     marginBottom: SPACING.md,
-  },
-  fieldLabel: {
-    ...TYPOGRAPHY.caption,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    marginBottom: 7,
-  },
-  input: {
-    backgroundColor: COLORS.background,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.overlay,
-    paddingHorizontal: SPACING.md,
-    minHeight: 52,
-    fontSize: 16,
-    color: COLORS.textPrimary,
-  },
-  inputFlex: {
-    flex: 1,
   },
   row: {
     flexDirection: "row",
-    gap: SPACING.sm,
+    gap: SPACING.md,
   },
-  rowField: {
-    flex: 1,
+  label: {
+    ...TYPOGRAPHY.caption,
+    fontWeight: "700",
+    color: COLORS.textSecondary,
+    marginBottom: 6,
+    marginLeft: 2,
   },
-  barcodeInputRow: {
-    flexDirection: "row",
-    gap: SPACING.xs,
-  },
-  inlineScanBtn: {
-    width: 52,
+  input: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: RADIUS.md,
     height: 52,
+    paddingHorizontal: SPACING.md,
+    ...TYPOGRAPHY.body,
+    color: COLORS.textPrimary,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+    marginTop: SPACING.xl,
+  },
+  btnPrimary: {
+    flex: 1,
+    height: 56,
     backgroundColor: COLORS.primary,
     borderRadius: RADIUS.md,
     alignItems: "center",
     justifyContent: "center",
   },
-  modalActions: {
-    flexDirection: "row",
-    gap: SPACING.sm,
-    marginTop: SPACING.sm,
+  btnPrimaryText: {
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.white,
   },
   btnSecondary: {
     flex: 1,
-    minHeight: 52,
-    borderRadius: RADIUS.md,
+    height: 56,
     backgroundColor: COLORS.surfaceMuted,
+    borderRadius: RADIUS.md,
     alignItems: "center",
     justifyContent: "center",
   },
   btnSecondaryText: {
     ...TYPOGRAPHY.bodyBold,
+    color: COLORS.textPrimary,
   },
-  btnPrimary: {
-    flex: 1,
-    minHeight: 52,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnPrimaryText: {
-    ...TYPOGRAPHY.buttonLabel,
+  pressed: {
+    opacity: 0.8,
   },
   disabled: {
     opacity: 0.6,
-  },
-  pressed: {
-    opacity: 0.78,
-  },
-  scannerContainer: {
-    flex: 1,
-    backgroundColor: COLORS.black,
-  },
-  scannerOverlay: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(2,6,23,0.55)",
-  },
-  scannerFrame: {
-    width: 250,
-    height: 250,
-    borderWidth: 2,
-    borderColor: COLORS.white,
-    borderRadius: RADIUS.xl,
-    backgroundColor: "rgba(255,255,255,0.08)",
-  },
-  scannerHint: {
-    ...TYPOGRAPHY.bodyBold,
-    color: COLORS.white,
-    marginTop: SPACING.lg,
-  },
-  cancelScanBtn: {
-    position: "absolute",
-    bottom: 50,
-    paddingHorizontal: SPACING.xl,
-    minHeight: 52,
-    borderRadius: RADIUS.pill,
-    borderWidth: 1,
-    borderColor: COLORS.white,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelScanBtnText: {
-    color: COLORS.white,
-    fontWeight: "800",
   },
 });

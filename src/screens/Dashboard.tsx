@@ -2,14 +2,14 @@ import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
   Edit3,
-  PackageCheck,
   PackagePlus,
   PieChart,
   Receipt,
   ShoppingCart,
   Sparkles,
-  TrendingUp,
+  TrendingUp
 } from "lucide-react-native";
+import { Image } from "expo-image";
 import React, { useCallback, useMemo, useState } from "react";
 import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { AlertCard } from "../components/AlertCard";
@@ -199,17 +199,18 @@ export const Dashboard: React.FC = () => {
   return (
     <AppScreen>
       <AppHeader
-        eyebrow="Stocker"
         title="Nanay's Store"
         subtitle="Keep margins protected, shelves stocked, and sales moving today."
         right={<StatusPill label={`${stockHealthPct}% stocked`} tone={stockHealthPct >= 70 ? "success" : "warning"} />}
       />
 
+     
+
       <View style={styles.actionGrid}>
-        <ActionTile title="Incoming Stock" subtitle="Add or restock items" icon={PackagePlus} tone="primary" onPress={() => router.push("/intake")} />
+        <ActionTile title="Incoming Stock" subtitle="Add or restock items" icon={PackagePlus} tone="primary" onPress={() => router.push("/addstock")} />
         <ActionTile title="Sell Items" subtitle="Open mobile POS" icon={ShoppingCart} tone="success" onPress={() => router.push("/pos")} />
-        <ActionTile title="Scan Receipt" subtitle="OCR purchase or sale" icon={Receipt} tone="warning" onPress={() => router.push("/intake?mode=receipt&source=dashboard")} />
-        <ActionTile title="Manual Add" subtitle="Fast non-camera entry" icon={Edit3} tone="neutral" onPress={() => router.push("/intake?mode=manual&source=dashboard")} />
+        <ActionTile title="Scan Receipt" subtitle="OCR purchase or sale" icon={Receipt} tone="warning" onPress={() => router.push("/addstock?mode=receipt&source=dashboard")} />
+        <ActionTile title="Manual Add" subtitle="Fast non-camera entry" icon={Edit3} tone="neutral" onPress={() => router.push("/addstock?mode=manual&source=dashboard")} />
       </View>
 
       <SectionHeader title="Store Health" subtitle="Live from local inventory" />
@@ -252,20 +253,29 @@ export const Dashboard: React.FC = () => {
         </PremiumCard>
       )}
 
-      <Pressable style={({ pressed }) => [styles.stockLink, pressed && styles.pressed]} onPress={() => router.push("/inventory")}>
-        <PackageCheck color={COLORS.primary} size={19} />
-        <Text style={styles.stockLinkText}>View full inventory</Text>
-      </Pressable>
+     
 
-      <SectionHeader title="Recent Transactions" subtitle="Latest sales activity" count={salesHistory.length} />
+      <SectionHeader
+        title="Recent Transactions"
+        subtitle="Latest sales activity"
+        right={
+          <Pressable onPress={() => router.push("/inventory")}>
+            <Text className="text-blue-600 font-medium">
+              View full inventory →
+            </Text>
+          </Pressable>
+        }
+      />
+      
       {salesHistory.length === 0 ? (
         <EmptyState title="No sales yet" message="Finish a sale in POS and it will appear here." icon={<Receipt color={COLORS.primary} size={30} />} />
       ) : (
-        salesHistory.slice(0, 6).map((sale) => (
+        salesHistory.slice(0, 3).map((sale) => (
           <PremiumCard key={sale.id} style={styles.txCard}>
             <View style={styles.txIcon}>
               <Receipt color={COLORS.primary} size={18} />
             </View>
+            
             <View style={styles.txInfo}>
               <Text style={styles.txName} numberOfLines={1}>{sale.productName}</Text>
               <Text style={styles.txMeta}>{sale.quantity} sold</Text>
@@ -307,6 +317,12 @@ export const Dashboard: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  banner: {
+    width: "100%",
+    height: 160,
+    borderRadius: RADIUS.lg,
+    marginBottom: SPACING.lg,
+  },
   actionGrid: {
     gap: SPACING.sm,
   },

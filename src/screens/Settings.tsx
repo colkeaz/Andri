@@ -23,10 +23,13 @@ export const SettingsScreen: React.FC = () => {
   return (
     <AppScreen>
       <AppHeader
-        eyebrow="Settings"
         title="Store Setup"
         subtitle="Production-safe app details and local inventory status."
-        icon={<View style={styles.headerIcon}><SlidersHorizontal color={COLORS.primary} size={22} /></View>}
+        icon={
+          <View style={styles.headerIcon}>
+            <SlidersHorizontal color={COLORS.primary} size={22} />
+          </View>
+        }
         right={<StatusPill label="Local" tone="success" />}
       />
 
@@ -43,16 +46,40 @@ export const SettingsScreen: React.FC = () => {
 
       <SectionHeader title="Store" subtitle="Current local workspace" />
       <PremiumCard style={styles.listCard}>
-        <SettingRow icon={<Store color={COLORS.primary} size={20} />} title="Store profile" value="Nanay's Store" />
-        <SettingRow icon={<Database color={COLORS.success} size={20} />} title="Data source" value="Local SQLite" />
-        <SettingRow icon={<ShieldCheck color={COLORS.primary} size={20} />} title="Offline mode" value="Available" />
+        <SettingRow
+          icon={<Store color={COLORS.primary} size={20} />}
+          title="Store profile"
+          value="Nanay's Store"
+        />
+        <SettingRow
+          icon={<Database color={COLORS.success} size={20} />}
+          title="Data source"
+          value="Local SQLite"
+        />
+        <SettingRow
+          icon={<ShieldCheck color={COLORS.primary} size={20} />}
+          title="Offline mode"
+          value="Available"
+        />
       </PremiumCard>
 
       <SectionHeader title="App" subtitle="Build and support details" />
       <PremiumCard style={styles.listCard}>
-        <SettingRow icon={<Bell color={COLORS.warning} size={20} />} title="Alerts" value="Profit Guard, low stock, dead stock" />
-        <SettingRow icon={<LifeBuoy color={COLORS.primary} size={20} />} title="Support" value="FourPoint Team" />
-        <SettingRow icon={<Info color={COLORS.textSecondary} size={20} />} title="Version" value="1.0.0" />
+        <SettingRow
+          icon={<Bell color={COLORS.warning} size={20} />}
+          title="Alerts"
+          value="Profit Guard, low stock, dead stock"
+        />
+        <SettingRow
+          icon={<LifeBuoy color={COLORS.primary} size={20} />}
+          title="Support"
+          value="FourPoint Team"
+        />
+        <SettingRow
+          icon={<Info color={COLORS.textSecondary} size={20} />}
+          title="Version"
+          value="1.0.0"
+        />
       </PremiumCard>
     </AppScreen>
   );

@@ -169,7 +169,7 @@ export const ManualAddScreen: React.FC<ManualAddScreenProps> = ({ onComplete, on
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
       <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <AppHeader
-          eyebrow="Add Stock"
+        
           title="Add Product"
           subtitle="Manual entry is ready even when camera access is off."
           icon={onBack ? (

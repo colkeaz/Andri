@@ -4,7 +4,7 @@
     "slug": "my-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/AndriIcon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -52,8 +52,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "98ab71f2-e1d0-4356-b6be-4cdc3f2dab63"
+        "projectId": "18e56588-15fc-4d5d-b7f8-850a9e0fb780"
       }
-    }
+    },
+    "owner": "klythompsonchi"
   }
 }

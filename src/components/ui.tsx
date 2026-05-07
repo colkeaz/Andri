@@ -5,7 +5,6 @@ import {
   ImageSourcePropType,
   Pressable,
   PressableProps,
-  SafeAreaView,
   ScrollView,
   StyleProp,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   AlertCircle,
   ArrowRight,
@@ -22,7 +22,7 @@ import {
 } from "lucide-react-native";
 import { COLORS, LAYOUT, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../theme/tokens";
 
-const appIcon = require("../../assets/images/icon.png") as ImageSourcePropType;
+const appIcon = require("../../assets/images/AndriIcon.png") as ImageSourcePropType;
 
 type ScreenProps = {
   children: React.ReactNode;
@@ -98,10 +98,12 @@ export function SectionHeader({
   title,
   subtitle,
   count,
+  right,
 }: {
   title: string;
   subtitle?: string;
   count?: number;
+  right?: React.ReactNode;
 }) {
   return (
     <View style={styles.sectionHeader}>
@@ -109,7 +111,9 @@ export function SectionHeader({
         <Text style={styles.sectionTitle}>{title}</Text>
         {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
       </View>
-      {typeof count === "number" ? (
+      {right ? (
+        right
+      ) : typeof count === "number" ? (
         <View style={styles.countBadge}>
           <Text style={styles.countText}>{count}</Text>
         </View>

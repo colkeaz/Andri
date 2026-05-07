@@ -1,24 +1,30 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
+import { pickImageAsync } from "../utils/imagePicker";
 import { useFocusEffect } from "expo-router";
 import {
   Camera as CameraIcon,
   CheckCircle2,
   ChevronLeft,
+  FileText,
+  Plus,
   Receipt,
   RotateCcw,
   ShoppingCart,
   Trash2,
+  Upload,
 } from "lucide-react-native";
 import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { BigButton } from "../components/BigButton";
@@ -49,6 +55,8 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
   const [isSaving, setIsSaving] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
+  const isWeb = Platform.OS === "web";
+
   useFocusEffect(
     useCallback(() => {
       setIsFocused(true);
@@ -58,16 +66,12 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
     }, []),
   );
 
-  const handleSnap = async () => {
-    if (!cameraRef.current || isScanning) return;
+  const handleProcessImage = async (uri: string) => {
     setIsScanning(true);
     setDetectedItems([]);
 
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
-      if (!photo?.uri) throw new Error("Capture failed");
-
-      const result = await processImageForText(photo.uri);
+      const result = await processImageForText(uri);
       if (result.items && result.items.length > 0) {
         const allProducts = await dbService.getProducts();
         const enriched = result.items.map((item) => {
@@ -79,18 +83,63 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
           };
         });
         setDetectedItems(enriched);
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (!isWeb) await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
-        Alert.alert("No items found", "Try taking a clearer photo of the receipt.");
+        Alert.alert("OCR Result", "No items detected automatically. Please try a clearer image or use manual entry.");
       }
     } catch (error) {
-      Alert.alert("Scan Failed", error instanceof Error ? error.message : "Receipt could not be processed.");
+      Alert.alert("Processing Failed", error instanceof Error ? error.message : "Receipt could not be processed.");
     } finally {
       setIsScanning(false);
     }
   };
 
-  const updateItem = (id: string, field: "name" | "quantity" | "price", value: string) => {
+  const handleSnap = async () => {
+    if (!cameraRef.current || isScanning) return;
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
+      if (!photo?.uri) throw new Error("Capture failed");
+      await handleProcessImage(photo.uri);
+    } catch (error) {
+      Alert.alert("Capture Error", "Could not take photo.");
+    }
+  };
+
+  const handlePickImage = async () => {
+    try {
+      const uri = await pickImageAsync();
+      if (uri) {
+        await handleProcessImage(uri);
+      }
+    } catch (error) {
+      Alert.alert("Picker Error", "Could not select image.");
+    }
+  };
+
+  const startManualEntry = () => {
+    setDetectedItems([
+      {
+        id: `manual-${Date.now()}`,
+        name: "NEW ITEM",
+        quantity: 1,
+        price: 0,
+      }
+    ]);
+  };
+
+  const addManualLine = () => {
+    setDetectedItems(prev => [
+      ...prev,
+      {
+        id: `manual-${Date.now()}`,
+        name: "NEW ITEM",
+        quantity: 1,
+        price: 0,
+      }
+    ]);
+  };
+
+  const updateItem = (id: string, field: keyof ReceiptLineItem, value: string) => {
     setDetectedItems((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item;
@@ -107,7 +156,7 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
 
   const removeItem = (id: string) => {
     setDetectedItems((prev) => prev.filter((item) => item.id !== id));
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!isWeb) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   const handleSave = async () => {
@@ -139,7 +188,7 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
         summary,
         [{ text: "OK", onPress: onBack }],
       );
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (!isWeb) await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("handleSave failed:", error);
       Alert.alert(
@@ -198,9 +247,11 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
     );
   };
 
-  if (!permission) return <View style={styles.container} />;
+  // --- RENDERING ---
 
-  if (!permission.granted) {
+  if (!isWeb && !permission) return <View style={styles.container} />;
+
+  if (!isWeb && !permission.granted) {
     return (
       <View style={styles.permissionWrap}>
         <Receipt color={COLORS.primary} size={54} />
@@ -216,43 +267,85 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
     <View style={styles.container}>
       {detectedItems.length === 0 ? (
         <>
-          <View style={styles.camera}>
-            {isFocused && (
-              <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
-            )}
-            <View style={styles.overlay}>
-              <Pressable style={styles.floatingBack} onPress={onBack}>
-                <ChevronLeft color={COLORS.white} size={24} />
-              </Pressable>
-              <View style={styles.scanTarget} />
-              <Text style={styles.scanHint}>Align receipt within the frame</Text>
+          {/* TOP SECTION: Camera (Native) or File Picker (Web) */}
+          {isWeb ? (
+            <View style={styles.webPickerZone}>
+              <View style={styles.webPickerCard}>
+                <View style={styles.webIconCircle}>
+                  <Upload color={COLORS.primary} size={32} />
+                </View>
+                <Text style={styles.webPickerTitle}>Upload Receipt</Text>
+                <Text style={styles.webPickerSubtitle}>Select a photo of your receipt to process with OCR.</Text>
+                
+                <BigButton 
+                  title={isScanning ? "Processing..." : "Choose File"} 
+                  onPress={handlePickImage}
+                  disabled={isScanning}
+                  icon={isScanning ? <ActivityIndicator color={COLORS.white} /> : <Upload color={COLORS.white} size={20} />}
+                />
+                
+                <View style={styles.webDivider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>OR</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <Pressable style={styles.manualLink} onPress={startManualEntry}>
+                  <FileText color={COLORS.primary} size={18} />
+                  <Text style={styles.manualLinkText}>Manual Data Entry</Text>
+                </Pressable>
+              </View>
             </View>
-          </View>
-          <View style={styles.capturePanel}>
-            <AppHeader
-              eyebrow="Receipt OCR"
-              title="Scan Receipt"
-              subtitle="Capture a clear receipt, then edit parsed items before saving."
-              icon={<View style={styles.headerIcon}><Receipt color={COLORS.primary} size={22} /></View>}
-              right={<StatusPill label="Camera" tone="success" />}
-            />
-            <BigButton
-              title={isScanning ? "Scanning..." : "Scan Receipt"}
-              onPress={handleSnap}
-              icon={isScanning ? <ActivityIndicator color={COLORS.white} /> : <CameraIcon color={COLORS.white} size={22} />}
-              disabled={isScanning}
-            />
-          </View>
+          ) : (
+            <View style={styles.camera}>
+              {isFocused && (
+                <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+              )}
+              <View style={styles.overlay}>
+                <Pressable style={styles.floatingBack} onPress={onBack}>
+                  <ChevronLeft color={COLORS.white} size={24} />
+                </Pressable>
+                <View style={styles.scanTarget} />
+                <Text style={styles.scanHint}>Align receipt within the frame</Text>
+              </View>
+            </View>
+          )}
+
+          {/* BOTTOM SECTION (Native only has capture button here, Web header is unified above) */}
+          {!isWeb && (
+            <View style={styles.capturePanel}>
+              <AppHeader
+                eyebrow="Receipt OCR"
+                title="Scan Receipt"
+                subtitle="Capture a clear receipt, then edit parsed items before saving."
+                icon={<View style={styles.headerIcon}><Receipt color={COLORS.primary} size={22} /></View>}
+                right={
+                  <Pressable onPress={startManualEntry}>
+                    <StatusPill label="Manual Fallback" tone="neutral" />
+                  </Pressable>
+                }
+              />
+              <BigButton
+                title={isScanning ? "Scanning..." : "Scan Receipt"}
+                onPress={handleSnap}
+                icon={isScanning ? <ActivityIndicator color={COLORS.white} /> : <CameraIcon color={COLORS.white} size={22} />}
+                disabled={isScanning}
+              />
+            </View>
+          )}
         </>
       ) : (
         <View style={styles.listContainer}>
           <View style={styles.topPanel}>
             <AppHeader
-              eyebrow="Receipt OCR"
               title="Review Items"
               subtitle="Choose purchase to add stock or sale to deduct stock."
               icon={<Pressable style={styles.backBtn} onPress={onBack}><ChevronLeft color={COLORS.primary} size={22} /></Pressable>}
-              right={<StatusPill label={`${detectedItems.length} items`} tone="primary" />}
+              right={
+                <TouchableOpacity style={styles.addLineBtn} onPress={addManualLine}>
+                  <Plus color={COLORS.primary} size={20} />
+                </TouchableOpacity>
+              }
             />
             <View style={styles.modeSwitcher}>
               <Pressable style={[styles.modeBtn, mode === "PURCHASE" && styles.modeBtnActive]} onPress={() => setMode("PURCHASE")}>
@@ -271,13 +364,13 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
             renderItem={renderItem}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
-            ListEmptyComponent={<EmptyState title="No items parsed" message="Try scanning again with better lighting." />}
+            ListEmptyComponent={<EmptyState title="No items found" message="Add items manually using the + button above." />}
           />
 
           <View style={styles.footer}>
             <Pressable style={styles.resetBtn} onPress={() => setDetectedItems([])}>
               <RotateCcw color={COLORS.textSecondary} size={20} />
-              <Text style={styles.resetBtnText}>Retry</Text>
+              <Text style={styles.resetBtnText}>Restart</Text>
             </Pressable>
             <BigButton
               title={isSaving ? "Saving..." : `Process ${detectedItems.length} Items`}
@@ -511,6 +604,7 @@ const styles = StyleSheet.create({
   footerButton: {
     flex: 1,
   },
+<<<<<<< Updated upstream
   itemCardInvalid: {
     borderColor: COLORS.danger,
     backgroundColor: "#FFF5F5",
@@ -520,5 +614,80 @@ const styles = StyleSheet.create({
   },
   textError: {
     color: COLORS.danger,
+=======
+  webPickerZone: {
+    flex: 1,
+    padding: SPACING.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.background,
+  },
+  webPickerCard: {
+    backgroundColor: COLORS.surface,
+    padding: SPACING.xl,
+    borderRadius: RADIUS.xl,
+    width: "100%",
+    maxWidth: 400,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.overlay,
+    ...SHADOW.card,
+  },
+  webIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: SPACING.lg,
+  },
+  webPickerTitle: {
+    ...TYPOGRAPHY.h2,
+    marginBottom: SPACING.xs,
+    color: COLORS.textPrimary,
+  },
+  webPickerSubtitle: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    marginBottom: SPACING.xl,
+    lineHeight: 20,
+  },
+  webDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: SPACING.lg,
+    width: "100%",
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.overlay,
+  },
+  dividerText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
+    paddingHorizontal: SPACING.md,
+    fontWeight: "bold",
+  },
+  manualLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.xs,
+    padding: SPACING.sm,
+  },
+  manualLinkText: {
+    ...TYPOGRAPHY.bodyBold,
+    color: COLORS.primary,
+  },
+  addLineBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+>>>>>>> Stashed changes
   },
 });
