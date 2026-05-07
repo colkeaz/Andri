@@ -119,6 +119,7 @@ export const dbService = {
     id: string,
     name: string,
     barcode?: string,
+    category?: string | null,
   ): Promise<void> => {
     try {
       const store = readStore();
@@ -126,7 +127,7 @@ export const dbService = {
         id,
         name,
         barcode: barcode ?? null,
-        category: null,
+        category: category ?? null,
         min_stock_level: 5,
       };
       store.products = store.products.filter((p) => p.id !== id);
@@ -134,6 +135,7 @@ export const dbService = {
       writeStore(store);
     } catch (error) {
       console.error("addProduct (web) failed", error);
+      throw error;
     }
   },
 
@@ -159,6 +161,7 @@ export const dbService = {
       writeStore(store);
     } catch (error) {
       console.error("addBatch (web) failed", error);
+      throw error;
     }
   },
 
@@ -320,6 +323,7 @@ export const dbService = {
       writeStore(store);
     } catch (error) {
       console.error("updateProduct (web) failed", error);
+      throw error;
     }
   },
 
@@ -363,6 +367,7 @@ export const dbService = {
       writeStore(store);
     } catch (error) {
       console.error("updateInventoryPrices (web) failed", error);
+      throw error;
     }
   },
 
@@ -376,6 +381,7 @@ export const dbService = {
       writeStore(store);
     } catch (error) {
       console.error("deleteProduct (web) failed", error);
+      throw error;
     }
   },
 
@@ -444,6 +450,11 @@ export const dbService = {
             (a, b) =>
               new Date(a.date_added).getTime() - new Date(b.date_added).getTime(),
           );
+
+        const available = batches.reduce((sum, batch) => sum + batch.quantity, 0);
+        if (available < item.quantity) {
+          throw new Error(`Insufficient stock for ${item.name}.`);
+        }
 
         let remaining = item.quantity;
         for (const batch of batches) {

@@ -4,6 +4,13 @@
  * place that references the package on native builds.
  */
 import { SQL_INIT } from "./schema";
+import type {
+  DeadStockRow,
+  InventorySummaryRow,
+  ProductRow,
+  SaleCartItem,
+  SaleHistoryRow,
+} from "./schema";
 
 const DB_NAME = "smart_inventory.db";
 
@@ -33,24 +40,30 @@ export const initDatabase = async () => {
 };
 
 export const dbService = {
-  getProducts: async () => {
+  getProducts: async (): Promise<ProductRow[]> => {
     try {
       const db = await getDB();
-      return await db.getAllAsync("SELECT * FROM products");
+      return await db.getAllAsync<ProductRow>("SELECT * FROM products");
     } catch {
       return [];
     }
   },
 
-  addProduct: async (id: string, name: string, barcode?: string) => {
+  addProduct: async (
+    id: string,
+    name: string,
+    barcode?: string | null,
+    category?: string | null,
+  ) => {
     try {
       const db = await getDB();
       await db.runAsync(
-        "INSERT INTO products (id, name, barcode) VALUES (?, ?, ?)",
-        [id, name, barcode ?? null],
+        "INSERT INTO products (id, name, barcode, category) VALUES (?, ?, ?, ?)",
+        [id, name, barcode ?? null, category ?? null],
       );
     } catch (error) {
       console.error("addProduct failed", error);
+      throw error;
     }
   },
 
@@ -69,6 +82,7 @@ export const dbService = {
       );
     } catch (error) {
       console.error("addBatch failed", error);
+      throw error;
     }
   },
 
@@ -83,11 +97,11 @@ export const dbService = {
     }
   },
 
-  getDeadStock: async () => {
+  getDeadStock: async (): Promise<DeadStockRow[]> => {
     try {
       const db = await getDB();
       // Returns items that have stock but no sales in 30 days (or never sold and added > 30 days ago)
-      return await db.getAllAsync<{ id: string, name: string, total_qty: number, price: number, last_sale: string | null }>(
+      return await db.getAllAsync<DeadStockRow>(
         `SELECT 
             p.id, 
             p.name, 
@@ -111,10 +125,10 @@ export const dbService = {
     }
   },
 
-  getInventorySummary: async () => {
+  getInventorySummary: async (): Promise<InventorySummaryRow[]> => {
     try {
       const db = await getDB();
-      return await db.getAllAsync(
+      return await db.getAllAsync<InventorySummaryRow>(
         `SELECT 
           p.id,
           p.name,
@@ -133,7 +147,7 @@ export const dbService = {
   },
 
   executeSaleTransaction: async (
-    cartItems: { productId: string; quantity: number; unitPrice: number }[],
+    cartItems: SaleCartItem[],
   ) => {
     if (!Array.isArray(cartItems) || cartItems.length === 0) {
       throw new Error("Cart is empty.");
@@ -238,6 +252,13 @@ export const dbService = {
             "SELECT id, quantity FROM inventory WHERE product_id = ? AND quantity > 0 ORDER BY date_added ASC",
             [productId],
           );
+          const available = batches.reduce(
+            (sum, batch) => sum + Number(batch.quantity ?? 0),
+            0,
+          );
+          if (available < item.quantity) {
+            throw new Error(`Insufficient stock for ${item.name}.`);
+          }
           
           let remaining = item.quantity;
           for (const batch of batches) {
@@ -287,6 +308,7 @@ export const dbService = {
       }
     } catch (error) {
       console.error("updateProduct (native) failed", error);
+      throw error;
     }
   },
 
@@ -326,6 +348,7 @@ export const dbService = {
       }
     } catch (error) {
       console.error("updateInventoryPrices (native) failed", error);
+      throw error;
     }
   },
 
@@ -340,19 +363,14 @@ export const dbService = {
     } catch (error) {
       await (await getDB()).execAsync("ROLLBACK");
       console.error("deleteProduct (native) failed", error);
+      throw error;
     }
   },
 
-  getSalesHistory: async (limit = 50) => {
+  getSalesHistory: async (limit = 50): Promise<SaleHistoryRow[]> => {
     try {
       const db = await getDB();
-      return await db.getAllAsync<{
-        id: string;
-        productName: string;
-        quantity: number;
-        totalPrice: number;
-        timestamp: string;
-      }>(
+      return await db.getAllAsync<SaleHistoryRow>(
         `SELECT s.id, COALESCE(p.name, 'Unknown') AS productName,
                 s.quantity, s.total_price AS totalPrice, s.timestamp
          FROM sales s

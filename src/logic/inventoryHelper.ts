@@ -1,4 +1,5 @@
 import { dbService } from "../database/db";
+import type { InventorySummaryRow } from "../database/schema";
 
 export type AggregatedInventoryItem = {
   id: string;
@@ -18,7 +19,7 @@ export async function getAggregatedInventory(): Promise<
     return [];
   }
 
-  return rows.map((row: any) => ({
+  return rows.map((row: InventorySummaryRow) => ({
     id:           String(row.id),
     name:         String(row.name ?? "Unnamed item"),
     barcode:      row.barcode ?? null,

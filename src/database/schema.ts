@@ -41,6 +41,46 @@ export interface SmartAlert {
   status: 'PENDING' | 'RESOLVED' | 'DISMISSED';
 }
 
+export type ProductRow = {
+  id: string;
+  name: string;
+  barcode: string | null;
+  category: string | null;
+  min_stock_level: number;
+};
+
+export type InventorySummaryRow = {
+  id: string;
+  name: string;
+  barcode: string | null;
+  min_stock_level: number;
+  total_stock: number;
+  selling_price: number;
+  cost_price: number;
+};
+
+export type DeadStockRow = {
+  id: string;
+  name: string;
+  total_qty: number;
+  price: number;
+  last_sale: string | null;
+};
+
+export type SaleHistoryRow = {
+  id: string;
+  productName: string;
+  quantity: number;
+  totalPrice: number;
+  timestamp: string;
+};
+
+export type SaleCartItem = {
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+};
+
 export const SQL_INIT = `
   CREATE TABLE IF NOT EXISTS products (
     id TEXT PRIMARY KEY,

@@ -20,7 +20,6 @@ export const calculateProfitGuard = (
   currentSellingPrice: number,
   targetMargin: number = 0.15
 ): PriceSuggestion => {
-  const percentChange = ((newCost - currentCost) / currentCost) * 100;
   const suggestedSellingPrice = Math.ceil(newCost / (1 - targetMargin));
   const potentialMargin = (currentSellingPrice - newCost) / currentSellingPrice;
   const marginImpact = (targetMargin - potentialMargin) * 100;
