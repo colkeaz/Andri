@@ -1,122 +1,152 @@
-// ─────────────────────────────────────────────
-//  Stocker – "Tindahan" Filipino Elder-Friendly Theme
-//  Warm cream & gold palette inspired by Philippine heritage
-// ─────────────────────────────────────────────
-
 export const COLORS = {
-  // Core accent – Philippine flag deep blue
-  primary:   "#1B4B8A",
-  // Secondary accent – Philippine sun gold
-  secondary: "#D4A843",
+  background: "#F6F8FC",
+  surface: "#FFFFFF",
+  surfaceAlt: "#EEF4FF",
+  surfaceMuted: "#F1F5F9",
+  overlay: "#DDE5F0",
 
-  // Status
-  success: "#2E7D32",
-  danger:  "#C62828",
-  error:   "#C62828",        // Alias for danger (used across codebase)
-  warning: "#F57C00",
+  primary: "#164B8F",
+  primaryDark: "#0B2F5B",
+  primarySoft: "#E8F1FF",
+  secondary: "#D9A441",
+  secondarySoft: "#FFF4D8",
 
-  // Backgrounds – warm cream tones
-  background: "#FFF8F0",     // Warm cream canvas
-  surface:    "#FFF2E6",     // Slightly deeper cream for cards
-  surfaceAlt: "#FFEDD5",     // Warm accent card variant
-  overlay:    "#E8D5BE",     // Warm tan border / divider
+  success: "#16803C",
+  successSoft: "#E8F7EE",
+  danger: "#C92A2A",
+  error: "#C92A2A",
+  dangerSoft: "#FCEAEA",
+  warning: "#B7791F",
+  warningSoft: "#FFF2D8",
 
-  // Text – warm brown tones for readability
-  textPrimary:   "#2C1810",  // Rich dark brown – easier on older eyes
-  textSecondary: "#7A6557",  // Medium brown – warm secondary text
+  textPrimary: "#111827",
+  textSecondary: "#64748B",
+  textTertiary: "#94A3B8",
 
-  // Convenience
   white: "#FFFFFF",
-  black: "#2C1810",
-
-  // Filipino accent colors
-  accent:    "#D4A843",      // Sun gold
-  accentSoft:"#FFF3D6",      // Soft gold for backgrounds
-  accentVibrant: "#E53935",  // Fiesta Red
-  accentJeepney: "#FFCA28",  // Jeepney Yellow
+  black: "#020617",
+  accent: "#D9A441",
+  accentSoft: "#FFF4D8",
+  accentVibrant: "#E94B35",
+  accentJeepney: "#F6C445",
 };
 
 export const SPACING = {
-  xs:  10,
-  sm:  18,
-  md:  26,
-  lg:  34,
-  xl:  52,
+  xs: 8,
+  sm: 12,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  "2xl": 44,
 };
 
 export const RADIUS = {
-  sm:  14,
-  md:  18,
-  lg:  22,
-  xl:  28,
+  xs: 8,
+  sm: 10,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  pill: 999,
 };
 
 export const SHADOW = {
-  // Warm subtle shadow for cream surfaces
   card: {
-    shadowColor:   "#8B6914",
-    shadowOffset:  { width: 0, height: 3 },
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
-    shadowRadius:  10,
-    elevation:     3,
+    shadowRadius: 18,
+    elevation: 3,
   },
-  // Slightly lifted for modals / bottom sheets
+  soft: {
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+  },
   modal: {
-    shadowColor:   "#8B6914",
-    shadowOffset:  { width: 0, height: -3 },
-    shadowOpacity: 0.12,
-    shadowRadius:  20,
-    elevation:     10,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 12,
   },
 };
 
 export const TYPOGRAPHY = {
   h1: {
-    fontSize:      40,
-    fontWeight:    "800" as const,
-    fontFamily:    "Inter_700Bold",
-    color:         COLORS.textPrimary,
-    letterSpacing: -0.5,
+    fontSize: 34,
+    fontWeight: "800" as const,
+    fontFamily: "Inter_700Bold",
+    color: COLORS.textPrimary,
+    letterSpacing: 0,
   },
   h2: {
-    fontSize:      28,
-    fontWeight:    "700" as const,
-    fontFamily:    "Inter_600SemiBold",
-    color:         COLORS.textPrimary,
+    fontSize: 24,
+    fontWeight: "800" as const,
+    fontFamily: "Inter_700Bold",
+    color: COLORS.textPrimary,
+    letterSpacing: 0,
   },
   h3: {
-    fontSize:      24,
-    fontWeight:    "700" as const,
-    fontFamily:    "Inter_600SemiBold",
-    color:         COLORS.textPrimary,
+    fontSize: 20,
+    fontWeight: "700" as const,
+    fontFamily: "Inter_600SemiBold",
+    color: COLORS.textPrimary,
+    letterSpacing: 0,
   },
   bodyLarge: {
-    fontSize:      22,
-    fontWeight:    "600" as const,
-    fontFamily:    "Inter_500Medium",
-    color:         COLORS.textPrimary,
+    fontSize: 18,
+    fontWeight: "600" as const,
+    fontFamily: "Inter_600SemiBold",
+    color: COLORS.textPrimary,
+    letterSpacing: 0,
   },
   body: {
-    fontSize:      19,
-    fontFamily:    "Inter_400Regular",
-    color:         COLORS.textSecondary,
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    color: COLORS.textSecondary,
+    letterSpacing: 0,
   },
   bodyBold: {
-    fontSize:      19,
-    fontWeight:    "700" as const,
-    fontFamily:    "Inter_600SemiBold",
-    color:         COLORS.textPrimary,
+    fontSize: 15,
+    fontWeight: "700" as const,
+    fontFamily: "Inter_600SemiBold",
+    color: COLORS.textPrimary,
+    letterSpacing: 0,
   },
   caption: {
-    fontSize:      16,
-    fontFamily:    "Inter_400Regular",
-    color:         COLORS.textSecondary,
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: COLORS.textSecondary,
+    letterSpacing: 0,
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    fontFamily: "Inter_700Bold",
+    color: COLORS.primary,
+    letterSpacing: 0,
+    textTransform: "uppercase" as const,
   },
   buttonLabel: {
-    fontSize:      22,
-    fontWeight:    "700" as const,
-    fontFamily:    "Inter_600SemiBold",
-    color:         COLORS.white,
-    letterSpacing: 0.3,
+    fontSize: 16,
+    fontWeight: "800" as const,
+    fontFamily: "Inter_700Bold",
+    color: COLORS.white,
+    letterSpacing: 0,
   },
+  number: {
+    fontSize: 28,
+    fontWeight: "800" as const,
+    fontFamily: "Inter_700Bold",
+    color: COLORS.textPrimary,
+    letterSpacing: 0,
+  },
+};
+
+export const LAYOUT = {
+  screenPadding: SPACING.md,
+  bottomTabInset: 112,
+  minTouch: 48,
 };

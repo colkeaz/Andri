@@ -6,7 +6,7 @@ import {
   Settings,
   ShoppingCart,
 } from "lucide-react-native";
-import { COLORS } from "../../src/theme/tokens";
+import { COLORS, RADIUS } from "../../src/theme/tokens";
 
 export default function TabLayout() {
   return (
@@ -14,39 +14,31 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor:   COLORS.primary,
         tabBarInactiveTintColor: COLORS.textSecondary,
+        headerShown: false,
         tabBarStyle: {
-          height:          80,
-          paddingBottom:   16,
-          paddingTop:      10,
-          backgroundColor: COLORS.background,
-          borderTopWidth:  0.5,
-          borderTopColor:  COLORS.overlay,
-          // Subtle elevation for the tab bar
-          shadowColor:     "#000",
-          shadowOffset:    { width: 0, height: -1 },
-          shadowOpacity:   0.06,
-          shadowRadius:    8,
-          elevation:       8,
+          position: "absolute",
+          left: 14,
+          right: 14,
+          bottom: 14,
+          height: 74,
+          paddingBottom: 10,
+          paddingTop: 10,
+          backgroundColor: COLORS.surface,
+          borderTopWidth: 0,
+          borderWidth: 1,
+          borderColor: COLORS.overlay,
+          borderRadius: RADIUS.xl,
+          shadowColor: "#0F172A",
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.14,
+          shadowRadius: 24,
+          elevation: 12,
         },
         tabBarLabelStyle: {
-          fontSize:   11,
-          fontWeight: "600",
-          marginTop:  2,
+          fontSize: 11,
+          fontWeight: "700",
+          marginTop: 3,
         },
-        headerStyle: {
-          backgroundColor: COLORS.background,
-          shadowColor:     "#000",
-          shadowOpacity:   0.04,
-          shadowRadius:    4,
-          elevation:       2,
-        },
-        headerTitleStyle: {
-          fontSize:      18,
-          fontWeight:    "700",
-          color:         COLORS.textPrimary,
-          fontFamily:    "Inter_600SemiBold",
-        },
-        headerTintColor: COLORS.textPrimary,
       }}
     >
       <Tabs.Screen
@@ -67,6 +59,7 @@ export default function TabLayout() {
         name="intake"
         options={{
           title:        "Add Stock",
+          href:         "/intake",
           tabBarIcon:   ({ color }) => <PackagePlus color={color} size={24} strokeWidth={1.75} />,
         }}
       />
