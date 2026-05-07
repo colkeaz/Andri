@@ -604,7 +604,6 @@ const styles = StyleSheet.create({
   footerButton: {
     flex: 1,
   },
-<<<<<<< Updated upstream
   itemCardInvalid: {
     borderColor: COLORS.danger,
     backgroundColor: "#FFF5F5",
@@ -614,7 +613,7 @@ const styles = StyleSheet.create({
   },
   textError: {
     color: COLORS.danger,
-=======
+  },
   webPickerZone: {
     flex: 1,
     padding: SPACING.md,
@@ -688,6 +687,5 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primarySoft,
     alignItems: "center",
     justifyContent: "center",
->>>>>>> Stashed changes
   },
 });

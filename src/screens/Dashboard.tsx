@@ -204,7 +204,11 @@ export const Dashboard: React.FC = () => {
         right={<StatusPill label={`${stockHealthPct}% stocked`} tone={stockHealthPct >= 70 ? "success" : "warning"} />}
       />
 
-     
+      <Image 
+        source={require("../../assets/images/AndriBanner.png")} 
+        style={styles.banner} 
+        contentFit="cover" 
+      />
 
       <View style={styles.actionGrid}>
         <ActionTile title="Incoming Stock" subtitle="Add or restock items" icon={PackagePlus} tone="primary" onPress={() => router.push("/addstock")} />
