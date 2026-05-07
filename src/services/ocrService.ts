@@ -17,6 +17,7 @@ export type ReceiptLineItem = {
   name: string;
   quantity: number;
   price: number; // Unit price
+  priceString?: string; // Raw string to preserve decimals while typing
   existingId?: string;
   suggestedPrice?: number;
 };
@@ -34,9 +35,33 @@ const QTY_PATTERN = /(?:^|\s|x|qty|@)\s*(\d{1,3})\s*(?:pcs|units|units|x|qty|@)?
 
 function normalizePrice(raw: string): number | null {
   if (!raw) return null;
-  // Remove currency symbols and spaces
-  const cleaned = raw.replace(/[₱PH\s,]/gi, "").replace(",", ".");
-  if (!/^\d+(?:\.\d{2})$/.test(cleaned)) return null;
+  // Remove all letters, currency symbols, and spaces. Keep digits, dots, commas.
+  let cleaned = raw.replace(/[^\d.,]/g, "");
+  
+  if (!cleaned) return null;
+
+  // Handle European format 1.200,50 -> 1200.50 and US format 1,200.50 -> 1200.50
+  // If there's a comma and a dot, the one that appears last is the decimal separator.
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+
+  if (lastComma > -1 && lastDot > -1) {
+    if (lastComma > lastDot) {
+      // Comma is decimal separator (1.200,50)
+      cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+    } else {
+      // Dot is decimal separator (1,200.50)
+      cleaned = cleaned.replace(/,/g, "");
+    }
+  } else if (lastComma > -1) {
+    // Only comma. If it has exactly two digits after it, assume decimal (7,49). Otherwise assume thousands (1,200)
+    if (cleaned.length - lastComma === 3) {
+      cleaned = cleaned.replace(",", ".");
+    } else {
+      cleaned = cleaned.replace(/,/g, "");
+    }
+  }
+
   const num = parseFloat(cleaned);
   if (isNaN(num) || num <= 0) return null;
   return num;

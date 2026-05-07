@@ -90,12 +90,15 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
     }
   };
 
-  const updateItem = (id: string, field: keyof ReceiptLineItem, value: string) => {
+  const updateItem = (id: string, field: "name" | "quantity" | "price", value: string) => {
     setDetectedItems((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item;
         if (field === "quantity") return { ...item, quantity: parseInt(value, 10) || 0 };
-        if (field === "price") return { ...item, price: parseFloat(value) || 0 };
+        if (field === "price") {
+          const numericVal = parseFloat(value.replace(/,/g, '.'));
+          return { ...item, price: isNaN(numericVal) ? 0 : numericVal, priceString: value };
+        }
         if (field === "name") return { ...item, name: value };
         return item;
       }),
@@ -176,7 +179,7 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
           <Field label="Cost">
             <TextInput 
               style={[styles.detailInput, item.price <= 0 && styles.textError]} 
-              value={String(item.price)} 
+              value={item.priceString !== undefined ? item.priceString : String(item.price)} 
               keyboardType="decimal-pad" 
               onChangeText={(v) => updateItem(item.id, "price", v)} 
             />
@@ -281,7 +284,7 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
               color={mode === "PURCHASE" ? COLORS.primary : COLORS.success}
               style={styles.footerButton}
               onPress={handleSave}
-              disabled={isSaving}
+              disabled={isSaving || detectedItems.length === 0}
             />
           </View>
         </View>

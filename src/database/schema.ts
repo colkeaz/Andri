@@ -119,4 +119,10 @@ export const SQL_INIT = `
     metadata TEXT, -- JSON string
     status TEXT DEFAULT 'PENDING'
   );
+
+  CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+  CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
+  CREATE INDEX IF NOT EXISTS idx_inventory_product_id ON inventory(product_id);
+  CREATE INDEX IF NOT EXISTS idx_sales_product_id ON sales(product_id);
+  CREATE INDEX IF NOT EXISTS idx_sales_timestamp ON sales(timestamp);
 `;

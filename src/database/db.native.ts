@@ -39,6 +39,7 @@ export const getDB = async () => {
 export const initDatabase = async () => {
   try {
     const db = await getDB();
+    await db.execAsync("PRAGMA journal_mode = WAL;");
     await db.execAsync(SQL_INIT);
     console.log("Database initialized successfully");
   } catch (error) {

@@ -345,8 +345,16 @@ export const POSScreen: React.FC = () => {
               <Pressable style={({ pressed }) => [styles.btnCancel, pressed && styles.pressed]} onPress={() => setShowConfirm(false)}>
                 <Text style={styles.btnCancelText}>Cancel</Text>
               </Pressable>
-              <Pressable style={({ pressed }) => [styles.btnConfirm, pressed && styles.pressed]} onPress={executeSale}>
-                <Text style={styles.btnConfirmText}>Confirm</Text>
+              <Pressable 
+                style={({ pressed }) => [
+                  styles.btnConfirm, 
+                  (pressed || isProcessingSale) && styles.pressed,
+                  isProcessingSale && styles.btnDisabled
+                ]} 
+                onPress={executeSale}
+                disabled={isProcessingSale}
+              >
+                <Text style={styles.btnConfirmText}>{isProcessingSale ? "Processing..." : "Confirm"}</Text>
               </Pressable>
             </View>
           </View>
@@ -645,5 +653,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.78,
+  },
+  btnDisabled: {
+    opacity: 0.5,
+    backgroundColor: COLORS.textTertiary,
   },
 });

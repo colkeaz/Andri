@@ -29,6 +29,18 @@ When you add new stock, the app compares the new cost with your previous purchas
 
 ---
 
+## 💎 System Integrity & Security
+
+Andri is engineered for professional-grade reliability and data safety:
+
+- **Atomic Transactions**: Uses industry-standard ACID properties to ensure that a sale and stock deduction happen as a single "all-or-nothing" unit, preventing data corruption during app crashes.
+- **Write-Ahead Logging (WAL)**: Optimized for high-concurrency, allowing the app to perform sales and inventory updates simultaneously without UI lag.
+- **Indexing & Performance**: Critical database columns are indexed to provide $O(1)$ lookup speeds, ensuring instant barcode matches even with thousands of products.
+- **Transaction Guards**: Integrated UI debouncing and logic locks prevent accidental double-taps or duplicate sale records in fast-paced environments.
+- **Parameterized Security**: Full protection against SQL injection vulnerabilities through strict use of prepared statements and parameterized queries.
+
+---
+
 ## 🛠️ Setup & Installation
 
 ### Prerequisites
