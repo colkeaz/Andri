@@ -1,126 +1,77 @@
-# Smart Inventory System (Sari-Sari Smart) 🏪
+# Andri 🏪
 
-An AI-powered, elder-friendly mobile application designed specifically for small business owners (like sari-sari stores or local shops) to manage their inventory, track sales, and protect their profit margins against inflation.
+**Andri** is an intelligent, offline-first mobile application designed to empower small business owners with professional-grade inventory management and POS tools. Designed with a "Touch-First" and elder-friendly philosophy, it helps local shops protect their profit margins and eliminate manual tracking friction.
 
-## 🌟 Overview & Purpose
+---
 
-The **Smart Inventory System** is built to solve hidden friction points in running a small retail shop:
+## 🌟 What is it?
 
-- **The "Sari-Sari Trap"**: Manual shrinkage and tied-up cash due to poor inventory tracking.
-- **Price-Chasing**: Difficulty maintaining profit margins when supplier prices change rapidly.
-- **Dead Stock**: Cash tied up in items that aren't selling.
-- **Technological Barrier**: Complex point-of-sale systems are often too difficult for elderly shop owners to use.
+The app is a complete digital companion for sari-sari stores and small retail shops. It solves the most common pain points for small owners:
+- **Inflation Protection**: Automatically tracks supplier price changes and suggests new retail prices.
+- **Complexity Barrier**: Replaces complicated POS systems with a high-contrast, big-button interface.
+- **Manual Data Entry**: Uses AI Vision (OCR) to scan wholesaler receipts and product labels instantly.
+- **Offline Reliability**: Works 100% offline using a local SQLite database, perfect for areas with spotty internet.
 
-This app features a "Touch-First," high-contrast UI designed for extreme legibility and ease of use. It minimizes manual typing by prioritizing camera-based intake and large, clear actions.
+## 🚀 How It Works
 
-## ✨ Core Features
+### 1. Smart Intake (AI Vision)
+Instead of typing every item, use your camera to:
+- **Scan Receipts**: Snap a photo of a wholesaler receipt. The app parses the names, quantities, and costs automatically.
+- **Scan Labels**: Point at a product label to instantly extract the name and price using OCR.
 
-1.  **Elder-Friendly UI**: Massive buttons, high-contrast text, and a simplified navigation structure.
-2.  **"Profit Guard" System**: Automatically detects when a new batch of stock has a higher supplier price and suggests a new selling price to maintain your target profit margin (e.g., 15%).
-3.  **Dead-Stock Warnings**: Visual alerts for items that haven't moved in 30 days, suggesting a "Flash Sale" price to liquidate stock.
-4.  **Quick-Scan POS**: Turn your phone's camera into a rapid barcode scanner for fast checkouts, with a "Quick Tap" grid for non-barcoded items (like loose eggs or bread).
-5.  **Smart Receipt Scanning (OCR)**: Snap a photo of any wholesaler receipt. The system automatically extracts product names, quantities, and prices to bulk-update your stock in seconds.
-6.  **Offline-First**: Uses a local SQLite database to ensure the app works flawlessly even without an internet connection.
+### 2. Profit Guard™
+When you add new stock, the app compares the new cost with your previous purchase. If the price went up, **Profit Guard** calculates the exact selling price needed to maintain your target margin, ensuring you never sell at a loss due to inflation.
 
-## 🛠️ Technology Stack
+### 3. POS & Inventory
+- **Mobile POS**: Rapid barcode scanning for checkout.
+- **Quick-Add Grid**: A simplified grid for non-barcoded items like bread or loose goods.
+- **Dead-Stock Alerts**: Automatically flags items that haven't sold in 30 days and suggests liquidation prices.
 
-- **Framework**: React Native with Expo Router (Cross-platform iOS/Android)
-- **Database**: `expo-sqlite` for local persistence
-- **Camera & Scanning**: `expo-camera` for barcode scanning and high-speed image capture
-- **OCR Engine**: Google ML Kit for on-device text recognition
-- **Styling**: Custom theme tokens with `lucide-react-native` icons
+---
 
-## 🚀 Clone, Install, and Run
+## 🛠️ Setup & Installation
 
 ### Prerequisites
+- [Node.js](https://nodejs.org/) (20 LTS or newer)
+- [EAS CLI](https://docs.expo.dev/build/setup/) (for building APKs)
+- **Expo Go** app on your phone (for basic testing)
 
-- [Node.js](https://nodejs.org/) 20 LTS or newer
-- npm (bundled with Node.js)
-- Git
-- Optional: **Expo Go** on your phone for quick device testing
-
-### 1) Clone the repository
-
+### 1) Clone and Install
 ```bash
 git clone <your-repo-url>
-cd Andri
-```
-
-### 2) Install dependencies
-
-```bash
+cd my-app
 npm install
 ```
 
-### 3) Start the app
-
-**Universal dev server**
-
+### 2) Run for Development
 ```bash
-npm run start
+# Start the dev server
+npx expo start
 ```
+*Note: Because this app uses native modules for OCR and SQLite, some features require a **Development Build** rather than the standard Expo Go app.*
 
-**Run directly for web**
-
+### 3) Generate an APK (Android)
+To install the app directly on your phone as a standalone app:
+1. Install EAS: `npm install -g eas-cli`
+2. Log in: `eas login`
+3. Build the APK:
 ```bash
-npm run web
+npx eas build -p android --profile preview
 ```
+Once finished, you'll receive a link/QR code to download and install your APK.
 
-**Run directly for Android / iOS**
-
-```bash
-npm run android
-```
-
-### 4) Open in Cursor browser tab (Web Demo)
-
-1. Run `npm run web`.
-2. Wait until Expo prints a local URL (usually `http://localhost:8081`).
-3. Open that URL in Cursor's built-in browser tab.
-
-### 5) Run lint checks
-
-```bash
-npm run lint
-```
-
-### Notes
-
-- If Expo reports package compatibility warnings, run:
-  ```bash
-  npx expo install --check
-  ```
-- The app is local-first; it uses SQLite on native and localStorage on web.
-- For native ML Kit OCR, use a dev build / prebuild workflow (not Expo Go) because native modules must be linked.
-
-## 🧠 OCR Setup Notes
-
-The app includes advanced OCR extraction and bulk-add flow through ML Kit integration in `src/services/ocrService.ts`.
-
-Important for device testing:
-
-- OCR package: `@react-native-ml-kit/text-recognition`
-- Because this is a native module, for full device support you should run with a development build:
-  ```bash
-  npx expo prebuild
-  npx expo run:android
-  ```
-
+---
 
 ## 📱 Project Structure
 
-```text
-my-app/
-├── app/                  # Expo Router navigation (Tabs, Layouts)
-│   ├── (tabs)/           # Main app screens (Home, Stock, Add, Sell)
-│   └── _layout.tsx       # Root layout and database initialization
-├── src/
-│   ├── components/       # Reusable UI (BigButton, AlertCard)
-│   ├── database/         # SQLite schema and operations (db.ts)
-│   ├── logic/            # Business logic (Profit Guard calculations)
-│   ├── screens/          # Core views (Dashboard, POS, Inventory, VisualIntake)
-│   ├── services/         # Integrations (AI Vision, QR Generation)
-│   └── theme/            # Colors, Spacing, and Typography tokens
-├── train_model.py        # Python script for generating the AI model
-└── package.json          # Dependencies and scripts
-```
+- `app/`: Navigation and screen routing (Expo Router).
+- `src/screens/`: Main views including POS, Visual Intake, and Dashboard.
+- `src/database/`: SQLite schema and data persistence layer.
+- `src/logic/`: Core algorithms for Profit Guard and inventory aggregation.
+- `src/services/`: AI Vision and OCR integration services.
+- `src/theme/`: Navy & Gold "Premium-Contrast" design system.
+
+---
+
+## 🧠 OCR & Native Modules
+This app uses **Google ML Kit** for on-device text recognition. This ensures that your scanning works even without an internet connection. To modify the native configuration, refer to `app.json` and the `src/services/ocrService.ts` file.
