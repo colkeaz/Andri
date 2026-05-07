@@ -1,5 +1,6 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
+import { useFocusEffect } from "expo-router";
 import {
   Camera as CameraIcon,
   Keyboard,
@@ -7,7 +8,7 @@ import {
   ScanLine,
   Tag,
 } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -42,6 +43,16 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [cameraLayout, setCameraLayout] = useState({ width: 1, height: 1 });
   const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
+  const [isFocused, setIsFocused] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+      return () => {
+        setIsFocused(false);
+      };
+    }, []),
+  );
 
   if (!permission) return <View />;
 
@@ -170,11 +181,13 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.cameraWrap} onLayout={onCameraLayout}>
-        <CameraView
-          ref={cameraRef}
-          style={StyleSheet.absoluteFill}
-          facing="back"
-        />
+        {isFocused && (
+          <CameraView
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill}
+            facing="back"
+          />
+        )}
           <View style={styles.buttonContainer}>
             {isScanning && (
               <ActivityIndicator size="large" color={COLORS.white} />

@@ -1,5 +1,6 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
+import { useFocusEffect } from "expo-router";
 import {
   Camera as CameraIcon,
   CheckCircle2,
@@ -9,7 +10,7 @@ import {
   ShoppingCart,
   Trash2,
 } from "lucide-react-native";
-import React, { useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -46,6 +47,16 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
   const [detectedItems, setDetectedItems] = useState<ReceiptLineItem[]>([]);
   const [mode, setMode] = useState<"PURCHASE" | "SALE">("PURCHASE");
   const [isSaving, setIsSaving] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+      return () => {
+        setIsFocused(false);
+      };
+    }, []),
+  );
 
   const handleSnap = async () => {
     if (!cameraRef.current || isScanning) return;
@@ -161,7 +172,9 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
       {detectedItems.length === 0 ? (
         <>
           <View style={styles.camera}>
-            <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+            {isFocused && (
+              <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+            )}
             <View style={styles.overlay}>
               <Pressable style={styles.floatingBack} onPress={onBack}>
                 <ChevronLeft color={COLORS.white} size={24} />

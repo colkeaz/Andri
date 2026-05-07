@@ -65,11 +65,12 @@ export const POSScreen: React.FC = () => {
   const [scanned, setScanned] = useState(false);
   const [isProcessingSale, setIsProcessingSale] = useState(false);
   const [isLoadingInventory, setIsLoadingInventory] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [showError, setShowError] = useState<string | null>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
+      setIsFocused(true);
       let active = true;
       const load = async () => {
         setIsLoadingInventory(true);
@@ -83,6 +84,7 @@ export const POSScreen: React.FC = () => {
       load();
       return () => {
         active = false;
+        setIsFocused(false);
       };
     }, []),
   );
@@ -176,7 +178,7 @@ export const POSScreen: React.FC = () => {
 
   return (
     <AppScreen scroll={false}>
-      {canUseCamera ? (
+      {canUseCamera && isFocused ? (
         <View style={styles.scannerArea}>
           <CameraView
             style={StyleSheet.absoluteFill}
