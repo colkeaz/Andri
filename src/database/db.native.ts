@@ -153,17 +153,13 @@ export const dbService = {
     }
   },
 
-  executeSaleTransaction: async (
-    cartItems: SaleCartItem[],
-  ) => {
+  executeSaleTransaction: async (cartItems: SaleCartItem[]) => {
     if (!Array.isArray(cartItems) || cartItems.length === 0) {
       throw new Error("Cart is empty.");
     }
 
     const db = await getDB();
-    await db.execAsync("BEGIN TRANSACTION");
-
-    try {
+    await db.withTransactionAsync(async () => {
       for (const item of cartItems) {
         const requiredQty = Math.max(0, Math.floor(item.quantity));
         if (!item.productId || requiredQty <= 0) {
@@ -206,10 +202,11 @@ export const dbService = {
           );
         }
 
+        const saleId = `S-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
         await db.runAsync(
           "INSERT INTO sales (id, product_id, quantity, total_price, timestamp) VALUES (?, ?, ?, ?, ?)",
           [
-            `S-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            saleId,
             item.productId,
             requiredQty,
             requiredQty * Number(item.unitPrice),
@@ -217,12 +214,7 @@ export const dbService = {
           ],
         );
       }
-
-      await db.execAsync("COMMIT");
-    } catch (error) {
-      await db.execAsync("ROLLBACK");
-      throw error;
-    }
+    });
   },
 
   processReceiptTransaction: async (
@@ -230,30 +222,41 @@ export const dbService = {
     type: "PURCHASE" | "SALE",
   ) => {
     const db = await getDB();
-    await db.execAsync("BEGIN TRANSACTION");
-    try {
-      for (const item of items) {
-        const product = await db.getFirstAsync<{ id: string }>(
-          "SELECT id FROM products WHERE UPPER(name) = UPPER(?)",
-          [item.name],
-        );
+    
+    // We'll keep a local cache of product names added in this transaction
+    // to avoid lookup failures before commit.
+    const productCache = new Map<string, string>();
 
-        let productId = product?.id;
+    await db.withTransactionAsync(async () => {
+      for (const item of items) {
+        const normalizedName = item.name.toUpperCase().trim();
+        let productId: string | undefined = productCache.get(normalizedName);
+
         if (!productId) {
-          productId = `P-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          const product = await db.getFirstAsync<{ id: string }>(
+            "SELECT id FROM products WHERE UPPER(name) = UPPER(?)",
+            [normalizedName],
+          );
+          productId = product?.id;
+        }
+
+        if (!productId) {
+          productId = `P-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           await db.runAsync(
             "INSERT INTO products (id, name, min_stock_level) VALUES (?, ?, ?)",
             [productId, item.name, 5],
           );
+          productCache.set(normalizedName, productId);
         }
 
         if (type === "PURCHASE") {
-          const batchId = `B-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          const batchId = `B-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           const sellingPrice = Number((item.price * 1.15).toFixed(2));
           await db.runAsync(
             "INSERT INTO inventory (id, product_id, quantity, cost_price, selling_price) VALUES (?, ?, ?, ?, ?)",
             [batchId, productId, item.quantity, item.price, sellingPrice],
           );
+          console.log(`[DB] Added purchase: ${item.name} (${item.quantity} units)`);
         } else {
           const batches = await db.getAllAsync<{ id: string; quantity: number }>(
             "SELECT id, quantity FROM inventory WHERE product_id = ? AND quantity > 0 ORDER BY date_added ASC",
@@ -264,7 +267,7 @@ export const dbService = {
             0,
           );
           if (available < item.quantity) {
-            throw new Error(`Insufficient stock for ${item.name}.`);
+            throw new Error(`Insufficient stock for ${item.name}. (Available: ${available}, Required: ${item.quantity})`);
           }
           
           let remaining = item.quantity;
@@ -279,23 +282,21 @@ export const dbService = {
             remaining -= deduct;
           }
 
+          const saleId = `S-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           await db.runAsync(
             "INSERT INTO sales (id, product_id, quantity, total_price, timestamp) VALUES (?, ?, ?, ?, ?)",
             [
-              `S-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              saleId,
               productId,
               item.quantity,
               item.quantity * item.price,
               new Date().toISOString(),
             ],
           );
+          console.log(`[DB] Recorded sale: ${item.name} (${item.quantity} units)`);
         }
       }
-      await db.execAsync("COMMIT");
-    } catch (error) {
-      await db.execAsync("ROLLBACK");
-      throw error;
-    }
+    });
   },
 
   updateProduct: async (

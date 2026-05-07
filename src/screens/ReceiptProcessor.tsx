@@ -109,49 +109,91 @@ export const ReceiptProcessor: React.FC<ReceiptProcessorProps> = ({ onBack }) =>
 
   const handleSave = async () => {
     if (detectedItems.length === 0 || isSaving) return;
+
+    // Validation
+    const invalidItems = detectedItems.filter(
+      (item) => !item.name.trim() || item.quantity <= 0 || item.price <= 0
+    );
+
+    if (invalidItems.length > 0) {
+      Alert.alert(
+        "Validation Error",
+        `Please fix ${invalidItems.length} items that have empty names, 0 quantity, or 0 cost. These are highlighted in red.`,
+      );
+      return;
+    }
+
     setIsSaving(true);
     try {
       await dbService.processReceiptTransaction(detectedItems, mode);
+      
+      const summary = mode === "PURCHASE" 
+        ? `Added ${detectedItems.length} items to stock.` 
+        : `Recorded ${detectedItems.length} items as sales.`;
+
       Alert.alert(
-        "Success",
-        `${detectedItems.length} items recorded as ${mode === "PURCHASE" ? "purchases" : "sales"}.`,
+        "Save Successful",
+        summary,
         [{ text: "OK", onPress: onBack }],
       );
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      Alert.alert("Save Failed", error instanceof Error ? error.message : "There was a problem with the database.");
+      console.error("handleSave failed:", error);
+      Alert.alert(
+        "Save Failed", 
+        error instanceof Error ? error.message : "There was a problem saving to the database."
+      );
     } finally {
       setIsSaving(false);
     }
   };
 
-  const renderItem = ({ item }: { item: ReceiptLineItem }) => (
-    <View style={styles.itemCard}>
-      <View style={styles.itemHeader}>
-        <TextInput style={styles.itemNameInput} value={item.name} onChangeText={(v) => updateItem(item.id, "name", v)} />
-        <Pressable style={styles.deleteBtn} onPress={() => removeItem(item.id)}>
-          <Trash2 color={COLORS.danger} size={18} />
-        </Pressable>
-      </View>
-      <View style={styles.itemDetails}>
-        <Field label="Qty">
-          <TextInput style={styles.detailInput} value={String(item.quantity)} keyboardType="number-pad" onChangeText={(v) => updateItem(item.id, "quantity", v)} />
-        </Field>
-        <Field label="Cost">
-          <TextInput style={styles.detailInput} value={String(item.price)} keyboardType="decimal-pad" onChangeText={(v) => updateItem(item.id, "price", v)} />
-        </Field>
-        <View style={styles.totalBox}>
-          <Text style={styles.detailLabel}>Total</Text>
-          <Text style={styles.totalValue}>{money(item.quantity * item.price)}</Text>
+  const renderItem = ({ item }: { item: ReceiptLineItem }) => {
+    const isInvalid = !item.name.trim() || item.quantity <= 0 || item.price <= 0;
+    
+    return (
+      <View style={[styles.itemCard, isInvalid && styles.itemCardInvalid]}>
+        <View style={styles.itemHeader}>
+          <TextInput 
+            style={[styles.itemNameInput, !item.name.trim() && styles.inputError]} 
+            value={item.name} 
+            onChangeText={(v) => updateItem(item.id, "name", v)} 
+            placeholder="Product Name"
+          />
+          <Pressable style={styles.deleteBtn} onPress={() => removeItem(item.id)}>
+            <Trash2 color={COLORS.danger} size={18} />
+          </Pressable>
         </View>
+        <View style={styles.itemDetails}>
+          <Field label="Qty">
+            <TextInput 
+              style={[styles.detailInput, item.quantity <= 0 && styles.textError]} 
+              value={String(item.quantity)} 
+              keyboardType="number-pad" 
+              onChangeText={(v) => updateItem(item.id, "quantity", v)} 
+            />
+          </Field>
+          <Field label="Cost">
+            <TextInput 
+              style={[styles.detailInput, item.price <= 0 && styles.textError]} 
+              value={String(item.price)} 
+              keyboardType="decimal-pad" 
+              onChangeText={(v) => updateItem(item.id, "price", v)} 
+            />
+          </Field>
+          <View style={styles.totalBox}>
+            <Text style={styles.detailLabel}>Total</Text>
+            <Text style={styles.totalValue}>{money(item.quantity * item.price)}</Text>
+          </View>
+        </View>
+        <NoticeBanner
+          title="Profit Guard"
+          message={`Suggested selling price: ${money(item.price * 1.15)}`}
+          tone={isInvalid ? "danger" : "primary"}
+        />
       </View>
-      <NoticeBanner
-        title="Profit Guard"
-        message={`Suggested selling price: ${money(item.price * 1.15)}`}
-        tone="primary"
-      />
-    </View>
-  );
+    );
+  };
 
   if (!permission) return <View style={styles.container} />;
 
@@ -465,5 +507,15 @@ const styles = StyleSheet.create({
   },
   footerButton: {
     flex: 1,
+  },
+  itemCardInvalid: {
+    borderColor: COLORS.danger,
+    backgroundColor: "#FFF5F5",
+  },
+  inputError: {
+    borderColor: COLORS.danger,
+  },
+  textError: {
+    color: COLORS.danger,
   },
 });
