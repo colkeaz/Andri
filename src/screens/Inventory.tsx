@@ -11,7 +11,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react-native";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -80,7 +80,7 @@ export const InventoryScreen: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
-  const [isScanning, setIsScanning] = useState(false);
+  const isScanningRef = useRef(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [editTarget, setEditTarget] = useState<InventoryItem | null>(null);
   const [form, setForm] = useState<EditForm>({
@@ -146,12 +146,12 @@ export const InventoryScreen: React.FC = () => {
   };
 
   const handleBarCodeScanned = ({ data }: { data: string }) => {
-    if (isScanning) return;
-    setIsScanning(true);
+    if (isScanningRef.current) return;
+    isScanningRef.current = true;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setForm((f) => ({ ...f, barcode: data }));
     setShowScanner(false);
-    setIsScanning(false);
+    setTimeout(() => { isScanningRef.current = false; }, 2000);
   };
 
   const startScanning = async () => {
@@ -393,8 +393,9 @@ export const InventoryScreen: React.FC = () => {
         <View style={styles.scannerContainer}>
           <CameraView
             style={StyleSheet.absoluteFill}
-            onBarcodeScanned={isScanning ? undefined : handleBarCodeScanned}
-            barcodeScannerSettings={{ barcodeTypes: ["qr", "ean13", "ean8", "upc_a"] }}
+            facing="back"
+            onBarcodeScanned={handleBarCodeScanned}
+            barcodeScannerSettings={{ barcodeTypes: ["aztec", "ean13", "ean8", "qr", "pdf417", "upc_e", "datamatrix", "code39", "code93", "itf14", "codabar", "code128", "upc_a"] }}
           />
           <View style={styles.scannerOverlay}>
             <View style={styles.scannerFrame} />

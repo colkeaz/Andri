@@ -182,8 +182,9 @@ export const POSScreen: React.FC = () => {
         <View style={styles.scannerArea}>
           <CameraView
             style={StyleSheet.absoluteFill}
+            facing="back"
             onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-            barcodeScannerSettings={{ barcodeTypes: ["qr", "ean13", "ean8", "upc_a"] }}
+            barcodeScannerSettings={{ barcodeTypes: ["aztec", "ean13", "ean8", "qr", "pdf417", "upc_e", "datamatrix", "code39", "code93", "itf14", "codabar", "code128", "upc_a"] }}
           />
           <View style={styles.scanOverlay}>
             <View style={styles.scanFrame}>
