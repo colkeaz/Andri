@@ -24,7 +24,7 @@ async function loadSQLite(): Promise<ExpoSQLite> {
   return sqliteModule;
 }
 
-let dbPromise: Promise<any> | null = null;
+let dbPromise: ReturnType<ExpoSQLite["openDatabaseAsync"]> | null = null;
 
 export const getDB = async () => {
   if (!dbPromise) {

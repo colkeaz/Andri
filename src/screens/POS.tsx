@@ -67,6 +67,7 @@ export const POSScreen: React.FC = () => {
   const [isLoadingInventory, setIsLoadingInventory] = useState(false);
   const [showError, setShowError] = useState<string | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
