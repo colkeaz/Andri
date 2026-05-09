@@ -2,6 +2,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Camera, ClipboardEdit, Receipt } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
+
 import {
   ActionTile,
   AppHeader,
@@ -9,10 +11,13 @@ import {
   NoticeBanner,
   StatusPill,
 } from "../../src/components/ui";
+
 import { ManualAddScreen } from "../../src/screens/ManualAdd";
 import { ReceiptProcessor } from "../../src/screens/ReceiptProcessor";
 import { VisualIntakeScreen } from "../../src/screens/VisualIntake";
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from "../../src/theme/tokens";
+
+const appIcon = require("../../assets/images/AndriIcon.png");
 
 type IntakeView = "chooser" | "camera" | "manual" | "receipt";
 
@@ -47,7 +52,7 @@ export default function Page() {
             ? () => setView("camera")
             : params.source === "dashboard"
             ? () => router.replace("/")
-            : () => router.replace("/intake")
+            : () => router.replace("/addstock")
         }
       />
     );
@@ -60,7 +65,7 @@ export default function Page() {
           if (params.source === "dashboard") {
             router.replace("/");
           } else {
-            router.replace("/intake");
+            router.replace("/addstock");
           }
         }}
       />
@@ -81,10 +86,17 @@ export default function Page() {
   return (
     <AppScreen>
       <AppHeader
-        eyebrow="Add Stock"
         title="Choose Entry Type"
         subtitle="Add products manually or scan a receipt. Both paths save to the same inventory."
-        icon={<View style={styles.headerIcon}><ClipboardEdit color={COLORS.primary} size={22} /></View>}
+        icon={
+          <View style={styles.headerIcon}>
+            <Image
+              source={appIcon}
+              style={{ width: 40, height: 40 }}
+              contentFit="contain"
+            />
+          </View>
+        }
         right={<StatusPill label="Stock Intake" tone="primary" />}
       />
 
@@ -94,14 +106,15 @@ export default function Page() {
           subtitle="Type product name, category, quantity, prices, and optional barcode."
           icon={ClipboardEdit}
           tone="primary"
-          onPress={() => router.replace("/intake?mode=manual")}
+          onPress={() => router.replace("/addstock?mode=manual")}
         />
+
         <ActionTile
           title="Scan Receipt"
           subtitle="Use OCR to detect receipt items, then review before saving."
           icon={Receipt}
           tone="warning"
-          onPress={() => router.replace("/intake?mode=receipt")}
+          onPress={() => router.replace("/addstock?mode=receipt")}
         />
       </View>
 
@@ -131,10 +144,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   optionStack: {
     gap: SPACING.sm,
     marginBottom: SPACING.md,
   },
+
   tipCard: {
     marginTop: SPACING.md,
     borderRadius: RADIUS.lg,
@@ -143,9 +158,11 @@ const styles = StyleSheet.create({
     borderColor: COLORS.overlay,
     padding: SPACING.md,
   },
+
   tipTitle: {
     ...TYPOGRAPHY.bodyBold,
   },
+
   tipBody: {
     ...TYPOGRAPHY.body,
     marginTop: 6,

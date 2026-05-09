@@ -56,10 +56,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="intake"
+        name="addstock"
         options={{
           title:        "Add Stock",
-          href:         "/intake",
           tabBarIcon:   ({ color }) => <PackagePlus color={color} size={24} strokeWidth={1.75} />,
         }}
       />

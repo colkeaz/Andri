@@ -220,7 +220,6 @@ export const VisualIntakeScreen: React.FC<VisualIntakeScreenProps> = ({
       <View style={styles.content}>
         <ScrollView showsVerticalScrollIndicator={false}>
           <AppHeader
-            eyebrow="Camera Intake"
             title="Scan Product"
             subtitle="Capture a label, then tap detected text to fill the item."
             icon={<View style={styles.headerIcon}><ScanLine color={COLORS.primary} size={22} /></View>}

@@ -203,7 +203,6 @@ export const POSScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
         >
           <AppHeader
-            eyebrow="Mobile POS"
             title="Sell Items"
             subtitle="Quick add products, review the cart, then finish the sale."
             icon={<View style={styles.headerIcon}><ShoppingBag color={COLORS.primary} size={22} /></View>}
@@ -342,20 +341,19 @@ export const POSScreen: React.FC = () => {
             </View>
 
             <View style={styles.modalActions}>
-              <Pressable style={({ pressed }) => [styles.btnCancel, pressed && styles.pressed]} onPress={() => setShowConfirm(false)}>
-                <Text style={styles.btnCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable 
-                style={({ pressed }) => [
-                  styles.btnConfirm, 
-                  (pressed || isProcessingSale) && styles.pressed,
-                  isProcessingSale && styles.btnDisabled
-                ]} 
+              <BigButton
+                title="Cancel"
+                variant="outlined"
+                color={COLORS.textSecondary}
+                onPress={() => setShowConfirm(false)}
+                style={styles.modalActionBtn}
+              />
+              <BigButton
+                title="Confirm"
+                color={COLORS.success}
                 onPress={executeSale}
-                disabled={isProcessingSale}
-              >
-                <Text style={styles.btnConfirmText}>{isProcessingSale ? "Processing..." : "Confirm"}</Text>
-              </Pressable>
+                style={styles.modalActionBtn}
+              />
             </View>
           </View>
         </View>
@@ -624,6 +622,10 @@ const styles = StyleSheet.create({
   confirmTotalValue: {
     ...TYPOGRAPHY.number,
     color: COLORS.success,
+  },
+  modalActionBtn: {
+    flex: 1,
+    width: undefined,
   },
   modalActions: {
     flexDirection: "row",

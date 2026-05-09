@@ -8,6 +8,7 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import "../global.css";
 import { initDatabase } from "../src/database/db";
 import { BrandMark } from "../src/components/ui";
 import { COLORS, SPACING, TYPOGRAPHY } from "../src/theme/tokens";

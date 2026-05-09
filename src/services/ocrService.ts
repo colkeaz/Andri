@@ -1,4 +1,8 @@
-import TextRecognition from "@react-native-ml-kit/text-recognition";
+import { Platform } from "react-native";
+
+// This will automatically resolve to ocrEngine.web.ts on Web 
+// and ocrEngine.ts on Android/iOS thanks to Metro/Webpack extensions.
+import * as Engine from "./ocrEngine";
 
 export type OCRFieldType = "name" | "price" | "quantity";
 
@@ -28,10 +32,8 @@ export type OCRResult = {
   items?: ReceiptLineItem[];
 };
 
-// More robust price regex: matches 12.50, 1,200.00, ₱50.00, etc.
 const PRICE_PATTERN = /(?:₱|PHP|P)?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2}))/i;
-// Quantity pattern: matches 10pcs, 10 pcs, x5, 5x, 10 units
-const QTY_PATTERN = /(?:^|\s|x|qty|@)\s*(\d{1,3})\s*(?:pcs|units|units|x|qty|@)?(?:\s|$)/i;
+const QTY_PATTERN = /(?:^|\s|x|qty|@)\s*(\d{1,3})\s*(?:pcs|units|x|qty|@)?(?:\s|$)/i;
 
 function normalizePrice(raw: string): number | null {
   if (!raw) return null;
@@ -41,27 +43,22 @@ function normalizePrice(raw: string): number | null {
   if (!cleaned) return null;
 
   // Handle European format 1.200,50 -> 1200.50 and US format 1,200.50 -> 1200.50
-  // If there's a comma and a dot, the one that appears last is the decimal separator.
   const lastComma = cleaned.lastIndexOf(",");
   const lastDot = cleaned.lastIndexOf(".");
 
   if (lastComma > -1 && lastDot > -1) {
     if (lastComma > lastDot) {
-      // Comma is decimal separator (1.200,50)
       cleaned = cleaned.replace(/\./g, "").replace(",", ".");
     } else {
-      // Dot is decimal separator (1,200.50)
       cleaned = cleaned.replace(/,/g, "");
     }
   } else if (lastComma > -1) {
-    // Only comma. If it has exactly two digits after it, assume decimal (7,49). Otherwise assume thousands (1,200)
     if (cleaned.length - lastComma === 3) {
       cleaned = cleaned.replace(",", ".");
     } else {
       cleaned = cleaned.replace(/,/g, "");
     }
   }
-
   const num = parseFloat(cleaned);
   if (isNaN(num) || num <= 0) return null;
   return num;
@@ -71,9 +68,6 @@ function parseLine(line: string): ReceiptLineItem | null {
   const text = line.trim();
   if (text.length < 5) return null;
 
-  // 1. Try to find the total price (usually at the end of the line)
-  // 2. Try to find unit price and quantity
-  
   const words = text.split(/\s+/);
   if (words.length < 2) return null;
 
@@ -81,7 +75,6 @@ function parseLine(line: string): ReceiptLineItem | null {
   let unitPrice = 0;
   let quantity = 1;
 
-  // Search for prices from right to left (Total Price is usually last)
   let pricesFound: number[] = [];
   words.forEach(w => {
     const p = normalizePrice(w);
@@ -90,12 +83,9 @@ function parseLine(line: string): ReceiptLineItem | null {
 
   if (pricesFound.length === 0) return null;
 
-  // Heuristic: If we found 2 prices, the smaller one is likely unit price, larger is total
-  // Or if we found 1 price, it's either unit price or total.
   if (pricesFound.length >= 2) {
     unitPrice = Math.min(pricesFound[0], pricesFound[1]);
     const totalPrice = Math.max(pricesFound[0], pricesFound[1]);
-    // Try to infer quantity from prices
     if (unitPrice > 0) {
       quantity = Math.round(totalPrice / unitPrice);
     }
@@ -103,13 +93,11 @@ function parseLine(line: string): ReceiptLineItem | null {
     unitPrice = pricesFound[0];
   }
 
-  // Look for explicit quantity patterns (e.g. "10pcs", "x5")
   const qtyMatch = text.match(QTY_PATTERN);
   if (qtyMatch) {
     quantity = parseInt(qtyMatch[1], 10);
   }
 
-  // Name is everything else
   name = text
     .replace(PRICE_PATTERN, "")
     .replace(QTY_PATTERN, "")
@@ -129,8 +117,8 @@ function parseLine(line: string): ReceiptLineItem | null {
 }
 
 /**
- * Processes an image for text using ML Kit Text Recognition.
- * Returns full text, parsed receipt items, and positioned chips for overlay.
+ * SHARED LOGIC LAYER
+ * Processes an image using the platform-specific engine.
  */
 export async function processImageForText(
   imageUri: string,
@@ -141,8 +129,17 @@ export async function processImageForText(
   let chips: OCRChip[] = [];
 
   try {
-    const result = await TextRecognition.recognize(imageUri);
-    fullText = result?.text ?? "";
+    // Platform-Specific Engine Call
+    let engineResult;
+    if (Platform.OS === 'web') {
+      // @ts-ignore - Dynamically picking the web function
+      engineResult = await Engine.recognizeTextWeb(imageUri);
+    } else {
+      // @ts-ignore - Dynamically picking the native function
+      engineResult = await Engine.recognizeTextNative(imageUri);
+    }
+
+    fullText = engineResult.text;
     
     const lines = fullText.split("\n");
     lines.forEach(line => {
@@ -150,53 +147,42 @@ export async function processImageForText(
       if (parsed) items.push(parsed);
     });
 
-    // Build positioned chips from ML Kit blocks for visual overlay
-    if (result?.blocks && imageSize) {
+    // Handle chips (only for native ML Kit blocks for now to avoid web complexity)
+    if (Platform.OS !== 'web' && engineResult.blocks && imageSize) {
       let chipIndex = 0;
-      for (const block of result.blocks) {
+      for (const block of engineResult.blocks) {
         for (const line of block.lines ?? []) {
           const text = (line.text ?? "").trim();
           if (!text || text.length < 2) continue;
 
-          const lineWithFrame = line as typeof line & {
-            boundingBox?: { left?: number; top?: number; x?: number; y?: number; width?: number; height?: number };
-          };
-          const frame = (line.frame ?? lineWithFrame.boundingBox) as
-            | { left?: number; top?: number; x?: number; y?: number; width?: number; height?: number }
-            | undefined;
-          const x = frame?.left ?? frame?.x ?? 0;
-          const y = frame?.top ?? frame?.y ?? 0;
-          const w = frame?.width ?? 100;
-          const h = frame?.height ?? 30;
+          const frame = line.frame || (line as any).boundingBox;
+          if (frame) {
+            const x = frame.left ?? frame.x ?? 0;
+            const y = frame.top ?? frame.y ?? 0;
+            const w = frame.width ?? 100;
+            const h = frame.height ?? 30;
 
-          // Determine chip type
-          const priceMatch = text.match(/(?:₱|PHP|P)?\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})/i);
-          const chipType: OCRFieldType = priceMatch ? "price" : "name";
-          const chipText = priceMatch
-            ? (normalizePrice(priceMatch[0])?.toFixed(2) ?? text)
-            : text;
+            const priceMatch = text.match(/(?:₱|PHP|P)?\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})/i);
+            const chipType: OCRFieldType = priceMatch ? "price" : "name";
 
-          chips.push({
-            id: `chip-${chipIndex++}`,
-            text: chipText,
-            type: chipType,
-            x,
-            y,
-            width: w,
-            height: h,
-          });
+            chips.push({
+              id: `chip-${chipIndex++}`,
+              text: priceMatch ? (normalizePrice(priceMatch[0])?.toFixed(2) ?? text) : text,
+              type: chipType,
+              x, y, width: w, height: h,
+            });
+          }
         }
       }
     }
   } catch (error) {
-    console.error("OCR Error:", error);
-    throw new Error("Text recognition failed. Try a clearer photo with better lighting.");
+    console.error("OCR Service Error:", error);
+    throw new Error("Text recognition failed. Please try again or enter items manually.");
   }
 
-  // Deduplicate items with same name (if OCR reads overlapping blocks)
+  // Shared Deduplication Logic
   const uniqueItems: ReceiptLineItem[] = [];
   const seenNames = new Set<string>();
-  
   items.forEach(item => {
     if (!seenNames.has(item.name)) {
       seenNames.add(item.name);
@@ -204,9 +190,5 @@ export async function processImageForText(
     }
   });
 
-  return {
-    fullText,
-    chips,
-    items: uniqueItems,
-  };
+  return { fullText, chips, items: uniqueItems };
 }
